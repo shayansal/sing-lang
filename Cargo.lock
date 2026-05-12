@@ -494,6 +494,7 @@ dependencies = [
  "serde_json",
  "sing_parse",
  "sing_sem",
+ "sing_token",
 ]
 
 [[package]]
@@ -534,6 +535,13 @@ dependencies = [
  "sing_hir",
  "sing_parse",
  "thiserror",
+]
+
+[[package]]
+name = "sing_token"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

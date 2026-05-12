@@ -4,6 +4,8 @@ Sing is a minimum-token, native-speed, AI-first systems programming language. Th
 
 This repository implements the parser milestone and the first semantic checker slice: source -> lexer -> parser -> AST -> resolver/type checker/effect checker -> typed HIR -> JSON diagnostics.
 
+The full language contract is maintained in `LANGUAGE.md`.
+
 ## Hard Constraints
 
 - Do not redesign syntax.
@@ -21,6 +23,7 @@ Every technical decision must reduce total AI token cost across reading, writing
 - HIR is richer than source so tools do not need to infer meaning repeatedly.
 - Defaults should be deterministic and machine-readable.
 - Human prose is documentation; compiler output favors structured data.
+- Token cost is measured with stable `bytes`, `chars`, `lexemes`, `llm_tokens`, and weighted `total` fields.
 
 ## Tokens
 

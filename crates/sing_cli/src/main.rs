@@ -20,6 +20,8 @@ enum Command {
     Fmt { file: PathBuf },
     /// Stub for the future minifier.
     Min { file: PathBuf },
+    /// Print compact JSON token-cost metrics for a source file.
+    Tokens { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -29,6 +31,7 @@ fn main() -> ExitCode {
         Command::Check { file } => check(file),
         Command::Fmt { file } => stub("fmt", file),
         Command::Min { file } => stub("min", file),
+        Command::Tokens { file } => tokens(file),
     }
 }
 
@@ -83,6 +86,27 @@ fn check(file: PathBuf) -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE
+    }
+}
+
+fn tokens(file: PathBuf) -> ExitCode {
+    let src = match fs::read_to_string(&file) {
+        Ok(src) => src,
+        Err(error) => {
+            eprintln!("failed to read {}: {error}", file.display());
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match serde_json::to_string(&sing_token::token_cost(&src)) {
+        Ok(json) => {
+            println!("{json}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("failed to serialize token cost: {error}");
+            ExitCode::FAILURE
+        }
     }
 }
 

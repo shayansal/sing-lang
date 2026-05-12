@@ -4,6 +4,7 @@ members = [
     "crates/sing_parse",
     "crates/sing_diag",
     "crates/sing_hir",
+    "crates/sing_token",
     "crates/sing_sem",
     "crates/sing_cli",
 ]

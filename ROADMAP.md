@@ -8,6 +8,8 @@
 - `sing ast file.sg` JSON output.
 - Parser snapshots for the checked-in examples.
 - Token-economy rule: shortest useful source, richest deterministic IR, compact diagnostics.
+- `sing tokens file.sg` token-cost metrics.
+- `LANGUAGE.md` full language contract.
 
 ## v1-alpha.2
 
@@ -18,10 +20,14 @@
 
 ## Later Milestones
 
+- Parser V2 spans and recovery.
+- Real multi-file semantic model.
+- Full type inference, generics, effects, attrs, and memory checking.
+- HIR to MIR and optimizer foundations.
+- Interpreter/oracle execution.
 - Formatting and minification.
 - Macro expansion.
 - Borrow checking and effect validation.
-- Interpreter/oracle execution for semantic conformance.
 - Lowering to IR.
 - Native code generation.
 
