@@ -166,14 +166,14 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_sem/tests/type_infer.rs`
 - Create: `crates/sing_sem/tests/generics.rs`
 
-- [ ] Add inference variables and unification.
-- [ ] Add generic params and bounds.
-- [ ] Add literal inference.
-- [ ] Add numeric coercions.
-- [ ] Add result/option compatibility.
-- [ ] Add ref/raw pointer checking.
-- [ ] Add control-flow return and reachability checking.
-- [ ] Add precise `*`/Any semantics.
+- [x] Add inference variables and unification.
+- [x] Add generic params and bounds.
+- [x] Add literal inference.
+- [x] Add numeric coercions.
+- [x] Add result/option compatibility.
+- [x] Add ref/raw pointer checking.
+- [x] Add control-flow return and reachability checking.
+- [x] Add precise `*`/Any semantics.
 
 ### Task 5: Effects, Attrs, And Memory Model
 

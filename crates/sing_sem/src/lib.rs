@@ -265,6 +265,7 @@ struct FnInfo {
     params: Vec<HirType>,
     ret: HirType,
     effects: HashSet<String>,
+    generics: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -286,6 +287,7 @@ impl Typed {
 struct Scope {
     values: HashMap<String, HirType>,
     generics: HashSet<String>,
+    unsafe_allowed: bool,
 }
 
 struct Checker {
@@ -339,6 +341,7 @@ impl Checker {
                 params: vec![HirType::Prim("s".to_string())],
                 ret: HirType::v(),
                 effects: HashSet::from(["iw".to_string()]),
+                generics: Vec::new(),
             },
         );
         self.fns.insert(
@@ -347,6 +350,7 @@ impl Checker {
                 params: vec![HirType::Prim("f4".to_string())],
                 ret: HirType::Prim("f4".to_string()),
                 effects: HashSet::new(),
+                generics: Vec::new(),
             },
         );
         self.fns.insert(
@@ -355,6 +359,7 @@ impl Checker {
                 params: vec![HirType::Any],
                 ret: HirType::Any,
                 effects: HashSet::new(),
+                generics: Vec::new(),
             },
         );
     }
@@ -390,6 +395,7 @@ impl Checker {
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
+                        unsafe_allowed: false,
                     };
                     let hir_ty = self.lower_type(ty, &scope);
                     self.insert_type(name.0.clone(), TypeDef::Alias(hir_ty));
@@ -398,6 +404,7 @@ impl Checker {
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
+                        unsafe_allowed: false,
                     };
                     let expected = ty.as_ref().map(|ty| self.lower_type(ty, &scope));
                     let typed = self.check_expr(expr, &scope, expected.as_ref());
@@ -409,6 +416,7 @@ impl Checker {
                 }
                 ItemKind::Type(decl) => {
                     let scope = scope_for_generics(&decl.generics);
+                    self.validate_generic_bounds(&decl.generics, &scope);
                     let mut fields = HashMap::new();
                     for field in &decl.fields {
                         let ty = self.lower_type(&field.ty, &scope);
@@ -428,6 +436,7 @@ impl Checker {
                 }
                 ItemKind::Enum(decl) => {
                     let scope = scope_for_generics(&decl.generics);
+                    self.validate_generic_bounds(&decl.generics, &scope);
                     let enum_ty = HirType::Enum(decl.name.0.clone());
                     for variant in &decl.variants {
                         let name = match variant {
@@ -457,6 +466,13 @@ impl Checker {
                     }
                     self.types.insert(decl.name.0.clone(), TypeDef::Enum);
                 }
+                ItemKind::Trait(decl) => {
+                    let scope = scope_for_generics(&decl.generics);
+                    self.validate_generic_bounds(&decl.generics, &scope);
+                    for sig in &decl.fns {
+                        self.fn_info(sig);
+                    }
+                }
                 ItemKind::Fn(decl) => {
                     let info = self.fn_info(&decl.sig);
                     self.insert_fn(path_name(&decl.sig.name), info);
@@ -479,6 +495,7 @@ impl Checker {
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
+                        unsafe_allowed: false,
                     };
                     let hir_ty = ty
                         .as_ref()
@@ -536,6 +553,7 @@ impl Checker {
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
+                        unsafe_allowed: false,
                     };
                     if !self.types.contains_key(&decl.trait_name.0) {
                         self.error(
@@ -561,6 +579,7 @@ impl Checker {
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
+                        unsafe_allowed: false,
                     };
                     let typed = self.check_expr(&test.expr, &scope, None);
                     items.push(HirItem::Test {
@@ -582,6 +601,7 @@ impl Checker {
     fn check_fn(&mut self, item: &Item, decl: &FnDecl) -> HirFn {
         let sig = self.lower_fn_sig(&decl.sig);
         let mut scope = scope_for_generics(&decl.sig.generics);
+        scope.unsafe_allowed = has_attr(&item.attrs, "U");
         for param in &sig.params {
             if scope
                 .values
@@ -610,8 +630,13 @@ impl Checker {
                 }
             }
             self.enforce_attrs(&item.attrs, body, &path_name(&decl.sig.name));
+            let assignable = self.is_assignable(&sig.ret, &typed.ty);
             self.expect_assignable(&sig.ret, &typed.ty, &path_name(&decl.sig.name), "E0401");
-            typed.ty
+            if assignable {
+                sig.ret.clone()
+            } else {
+                typed.ty
+            }
         });
 
         HirFn { sig, body_type }
@@ -641,9 +666,20 @@ impl Checker {
         let mut ty = HirType::v();
         let mut effects = HashSet::new();
         let last = block.stmts.len().saturating_sub(1);
+        let mut terminated = false;
         for (idx, stmt) in block.stmts.iter().enumerate() {
+            if terminated {
+                self.error(
+                    "E0502",
+                    "unreachable statement",
+                    stmt_name(stmt),
+                    "control flow has already terminated",
+                );
+                continue;
+            }
             let stmt_expected = (idx == last).then_some(expected).flatten();
             let typed = self.check_stmt(stmt, scope, stmt_expected);
+            terminated = matches!(typed.ty, HirType::Never);
             ty = typed.ty;
             effects.extend(typed.effects);
         }
@@ -805,18 +841,24 @@ impl Checker {
                     Typed::pure(HirType::Unknown)
                 }
             }
-            Expr::Int(_) => Typed::pure(HirType::Prim("i4".to_string())),
-            Expr::Float(_) => Typed::pure(HirType::Prim("f4".to_string())),
+            Expr::Int(lit) => Typed::pure(int_literal_type(lit, expected)),
+            Expr::Float(lit) => Typed::pure(float_literal_type(lit, expected)),
             Expr::String(_) => Typed::pure(HirType::Prim("s".to_string())),
             Expr::Char(_) => Typed::pure(HirType::Prim("c".to_string())),
             Expr::Bool(_) => Typed::pure(HirType::b()),
             Expr::None => Typed::pure(expected.cloned().unwrap_or(HirType::Any)),
             Expr::Tuple(values) => {
                 let mut effects = HashSet::new();
+                let expected_items = match expected {
+                    Some(HirType::Tuple(types)) if types.len() == values.len() => Some(types),
+                    _ => None,
+                };
                 let types = values
                     .iter()
-                    .map(|expr| {
-                        let typed = self.check_expr(expr, scope, None);
+                    .enumerate()
+                    .map(|(idx, expr)| {
+                        let expected = expected_items.and_then(|types| types.get(idx));
+                        let typed = self.check_expr(expr, scope, expected);
                         effects.extend(typed.effects);
                         typed.ty
                     })
@@ -867,7 +909,17 @@ impl Checker {
                         mutable: true,
                         inner: Box::new(typed.ty.clone()),
                     },
-                    UnaryOp::Raw => HirType::Raw(Box::new(typed.ty.clone())),
+                    UnaryOp::Raw => {
+                        if !scope.unsafe_allowed {
+                            self.error(
+                                "E0501",
+                                "raw pointer creation requires `U`",
+                                "^",
+                                "mark the function with U to create raw pointers",
+                            );
+                        }
+                        HirType::Raw(Box::new(typed.ty.clone()))
+                    }
                     UnaryOp::Neg => {
                         self.error("E0405", "negation requires a numeric type", "-", "unary op");
                         HirType::Unknown
@@ -1033,8 +1085,17 @@ impl Checker {
         let mut effects = info.effects.clone();
         let arg_types = args
             .iter()
-            .map(|arg| {
-                let typed = self.check_expr(arg, scope, None);
+            .enumerate()
+            .map(|(idx, arg)| {
+                let expected = if name == "sum" {
+                    None
+                } else {
+                    info.params
+                        .get(idx)
+                        .filter(|ty| !contains_generic(ty))
+                        .map(|ty| ty as &HirType)
+                };
+                let typed = self.check_expr(arg, scope, expected);
                 effects.extend(typed.effects);
                 typed.ty
             })
@@ -1053,17 +1114,24 @@ impl Checker {
             );
         }
 
+        let mut substitutions = HashMap::new();
         for (idx, (expected, actual)) in info.params.iter().zip(arg_types.iter()).enumerate() {
             if name == "sum" {
                 continue;
             }
-            if !self.is_assignable(expected, actual) {
+            if !self.unify_arg(expected, actual, &mut substitutions) {
+                let code = if !info.generics.is_empty() && contains_generic(expected) {
+                    "E0410"
+                } else {
+                    "E0401"
+                };
+                let expected = substitute_type(expected, &substitutions);
                 self.error(
-                    "E0401",
+                    code,
                     format!(
                         "argument {} of `{name}` expected `{}` but got `{}`",
                         idx + 1,
-                        display_type(expected),
+                        display_type(&expected),
                         display_type(actual)
                     ),
                     &name,
@@ -1083,7 +1151,7 @@ impl Checker {
                 _ => HirType::Prim("f4".to_string()),
             }
         } else {
-            info.ret
+            substitute_type(&info.ret, &substitutions)
         };
 
         Typed { ty: ret, effects }
@@ -1236,6 +1304,8 @@ impl Checker {
     }
 
     fn fn_info(&mut self, sig: &FnSig) -> FnInfo {
+        let scope = scope_for_generics(&sig.generics);
+        self.validate_generic_bounds(&sig.generics, &scope);
         let hir = self.lower_fn_sig(sig);
         let known_effects = known_effects();
         for effect in &hir.effects {
@@ -1252,11 +1322,25 @@ impl Checker {
             params: hir.params.into_iter().map(|param| param.ty).collect(),
             ret: hir.ret,
             effects: hir.effects.into_iter().collect(),
+            generics: sig
+                .generics
+                .iter()
+                .map(|generic| generic.name.0.clone())
+                .collect(),
+        }
+    }
+
+    fn validate_generic_bounds(&mut self, generics: &[sing_ast::Generic], scope: &Scope) {
+        for generic in generics {
+            if let Some(bound) = &generic.bound {
+                self.lower_type(bound, scope);
+            }
         }
     }
 
     fn lower_type(&mut self, ty: &AstType, scope: &Scope) -> HirType {
         match ty {
+            AstType::Prim(Prim::Any) => HirType::Any,
             AstType::Prim(prim) => HirType::Prim(prim_name(prim).to_string()),
             AstType::Path(path) => {
                 let name = path_name(path);
@@ -1380,13 +1464,140 @@ impl Checker {
     }
 
     fn is_assignable(&self, expected: &HirType, actual: &HirType) -> bool {
-        expected == actual
+        if expected == actual
             || expected.is_unknown_like()
             || actual.is_unknown_like()
             || matches!(actual, HirType::Never)
             || (is_numeric(expected) && is_numeric(actual))
-            || matches!((expected, actual), (HirType::Result { ok, .. }, ty) if self.is_assignable(ok, ty))
-            || matches!((expected, actual), (HirType::Result { err, .. }, ty) if self.is_assignable(err, ty))
+        {
+            return true;
+        }
+
+        match (expected, actual) {
+            (
+                HirType::Ref { mutable, inner },
+                HirType::Ref {
+                    mutable: actual_mut,
+                    inner: actual_inner,
+                },
+            ) if mutable == actual_mut => self.is_assignable(inner, actual_inner),
+            (HirType::Raw(inner), HirType::Raw(actual_inner))
+            | (HirType::Slice(inner), HirType::Slice(actual_inner))
+            | (HirType::Option(inner), HirType::Option(actual_inner)) => {
+                self.is_assignable(inner, actual_inner)
+            }
+            (
+                HirType::Array { inner },
+                HirType::Array {
+                    inner: actual_inner,
+                },
+            ) => self.is_assignable(inner, actual_inner),
+            (
+                HirType::Result { ok, err },
+                HirType::Result {
+                    ok: actual_ok,
+                    err: actual_err,
+                },
+            ) => self.is_assignable(ok, actual_ok) && self.is_assignable(err, actual_err),
+            (HirType::Result { ok, err }, ty) => {
+                self.is_assignable(ok, ty) || self.is_assignable(err, ty)
+            }
+            (HirType::Tuple(types), HirType::Tuple(actual_types))
+                if types.len() == actual_types.len() =>
+            {
+                types
+                    .iter()
+                    .zip(actual_types)
+                    .all(|(expected, actual)| self.is_assignable(expected, actual))
+            }
+            (
+                HirType::Fn { params, ret },
+                HirType::Fn {
+                    params: actual_params,
+                    ret: actual_ret,
+                },
+            ) if params.len() == actual_params.len() => {
+                params
+                    .iter()
+                    .zip(actual_params)
+                    .all(|(expected, actual)| self.is_assignable(expected, actual))
+                    && self.is_assignable(ret, actual_ret)
+            }
+            _ => false,
+        }
+    }
+
+    fn unify_arg(
+        &self,
+        expected: &HirType,
+        actual: &HirType,
+        substitutions: &mut HashMap<String, HirType>,
+    ) -> bool {
+        match expected {
+            HirType::Generic(name) => match substitutions.get(name) {
+                Some(existing) => existing == actual || self.is_assignable(existing, actual),
+                None => {
+                    substitutions.insert(name.clone(), actual.clone());
+                    true
+                }
+            },
+            HirType::Ref { mutable, inner } => match actual {
+                HirType::Ref {
+                    mutable: actual_mut,
+                    inner: actual_inner,
+                } if mutable == actual_mut => self.unify_arg(inner, actual_inner, substitutions),
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Raw(inner) => match actual {
+                HirType::Raw(actual_inner) => self.unify_arg(inner, actual_inner, substitutions),
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Slice(inner) => match actual {
+                HirType::Slice(actual_inner) => self.unify_arg(inner, actual_inner, substitutions),
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Array { inner } => match actual {
+                HirType::Array {
+                    inner: actual_inner,
+                } => self.unify_arg(inner, actual_inner, substitutions),
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Option(inner) => match actual {
+                HirType::Option(actual_inner) => self.unify_arg(inner, actual_inner, substitutions),
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Result { ok, err } => match actual {
+                HirType::Result {
+                    ok: actual_ok,
+                    err: actual_err,
+                } => {
+                    self.unify_arg(ok, actual_ok, substitutions)
+                        && self.unify_arg(err, actual_err, substitutions)
+                }
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Tuple(types) => match actual {
+                HirType::Tuple(actual_types) if types.len() == actual_types.len() => types
+                    .iter()
+                    .zip(actual_types)
+                    .all(|(expected, actual)| self.unify_arg(expected, actual, substitutions)),
+                _ => self.is_assignable(expected, actual),
+            },
+            HirType::Fn { params, ret } => {
+                match actual {
+                    HirType::Fn {
+                        params: actual_params,
+                        ret: actual_ret,
+                    } if params.len() == actual_params.len() => {
+                        params.iter().zip(actual_params).all(|(expected, actual)| {
+                            self.unify_arg(expected, actual, substitutions)
+                        }) && self.unify_arg(ret, actual_ret, substitutions)
+                    }
+                    _ => self.is_assignable(expected, actual),
+                }
+            }
+            _ => self.is_assignable(expected, actual),
+        }
     }
 
     fn is_numeric_pair(&self, left: &HirType, right: &HirType) -> bool {
@@ -1416,7 +1627,12 @@ fn scope_for_generics(generics: &[sing_ast::Generic]) -> Scope {
             .iter()
             .map(|generic| generic.name.0.clone())
             .collect(),
+        unsafe_allowed: false,
     }
+}
+
+fn has_attr(attrs: &[Attr], target: &str) -> bool {
+    attrs.iter().any(|attr| attr.0 == target)
 }
 
 fn id(ident: &Ident) -> String {
@@ -1446,6 +1662,21 @@ fn expr_name(expr: &Expr) -> Option<String> {
         Expr::Field { name, .. } => Some(name.0.clone()),
         Expr::Call { callee, .. } => callee_name(callee),
         _ => None,
+    }
+}
+
+fn stmt_name(stmt: &Stmt) -> &str {
+    match stmt {
+        Stmt::Require(_) => "?",
+        Stmt::Ensure(_) => "~",
+        Stmt::Return(_) => ">",
+        Stmt::LoopRange { var, .. } => &var.0,
+        Stmt::LoopWhile { .. } => "l",
+        Stmt::Break => "b",
+        Stmt::Continue => "c",
+        Stmt::Bind { name, .. } => &name.0,
+        Stmt::Mut { .. } => ":=",
+        Stmt::Expr(_) => "expr",
     }
 }
 
@@ -1525,11 +1756,50 @@ fn deref_ref(ty: &HirType) -> HirType {
     }
 }
 
+fn contextual_numeric_type(expected: &HirType) -> Option<&HirType> {
+    match expected {
+        ty if is_numeric(ty) => Some(ty),
+        HirType::Option(inner) => contextual_numeric_type(inner),
+        HirType::Result { ok, .. } => contextual_numeric_type(ok),
+        _ => None,
+    }
+}
+
+fn int_literal_type(lit: &str, expected: Option<&HirType>) -> HirType {
+    for suffix in ["i1", "i2", "i4", "i8", "iz", "u1", "u2", "u4", "u8", "uz"] {
+        if lit.ends_with(suffix) {
+            return HirType::Prim(suffix.to_string());
+        }
+    }
+    expected
+        .and_then(contextual_numeric_type)
+        .filter(|ty| is_integer(ty))
+        .cloned()
+        .unwrap_or_else(|| HirType::Prim("i4".to_string()))
+}
+
+fn float_literal_type(lit: &str, expected: Option<&HirType>) -> HirType {
+    for suffix in ["f4", "f8"] {
+        if lit.ends_with(suffix) {
+            return HirType::Prim(suffix.to_string());
+        }
+    }
+    expected
+        .and_then(contextual_numeric_type)
+        .filter(|ty| is_float(ty))
+        .cloned()
+        .unwrap_or_else(|| HirType::Prim("f4".to_string()))
+}
+
 fn is_numeric(ty: &HirType) -> bool {
     matches!(ty, HirType::Prim(name) if matches!(
         name.as_str(),
         "i1" | "i2" | "i4" | "i8" | "iz" | "u1" | "u2" | "u4" | "u8" | "uz" | "f4" | "f8"
     ))
+}
+
+fn is_float(ty: &HirType) -> bool {
+    matches!(ty, HirType::Prim(name) if matches!(name.as_str(), "f4" | "f8"))
 }
 
 fn is_integer(ty: &HirType) -> bool {
@@ -1550,6 +1820,65 @@ fn common_numeric(left: &HirType, right: &HirType) -> HirType {
         right.clone()
     } else {
         left.clone()
+    }
+}
+
+fn contains_generic(ty: &HirType) -> bool {
+    match ty {
+        HirType::Generic(_) => true,
+        HirType::Ref { inner, .. }
+        | HirType::Raw(inner)
+        | HirType::Slice(inner)
+        | HirType::Array { inner }
+        | HirType::Option(inner) => contains_generic(inner),
+        HirType::Result { ok, err } => contains_generic(ok) || contains_generic(err),
+        HirType::Tuple(types) => types.iter().any(contains_generic),
+        HirType::Fn { params, ret } => params.iter().any(contains_generic) || contains_generic(ret),
+        HirType::Prim(_)
+        | HirType::Struct(_)
+        | HirType::Enum(_)
+        | HirType::Trait(_)
+        | HirType::Dyn(_)
+        | HirType::Any
+        | HirType::Unknown
+        | HirType::Never => false,
+    }
+}
+
+fn substitute_type(ty: &HirType, substitutions: &HashMap<String, HirType>) -> HirType {
+    match ty {
+        HirType::Generic(name) => substitutions
+            .get(name)
+            .cloned()
+            .unwrap_or_else(|| HirType::Generic(name.clone())),
+        HirType::Ref { mutable, inner } => HirType::Ref {
+            mutable: *mutable,
+            inner: Box::new(substitute_type(inner, substitutions)),
+        },
+        HirType::Raw(inner) => HirType::Raw(Box::new(substitute_type(inner, substitutions))),
+        HirType::Slice(inner) => HirType::Slice(Box::new(substitute_type(inner, substitutions))),
+        HirType::Array { inner } => HirType::Array {
+            inner: Box::new(substitute_type(inner, substitutions)),
+        },
+        HirType::Option(inner) => HirType::Option(Box::new(substitute_type(inner, substitutions))),
+        HirType::Result { ok, err } => HirType::Result {
+            ok: Box::new(substitute_type(ok, substitutions)),
+            err: Box::new(substitute_type(err, substitutions)),
+        },
+        HirType::Tuple(types) => HirType::Tuple(
+            types
+                .iter()
+                .map(|ty| substitute_type(ty, substitutions))
+                .collect(),
+        ),
+        HirType::Fn { params, ret } => HirType::Fn {
+            params: params
+                .iter()
+                .map(|ty| substitute_type(ty, substitutions))
+                .collect(),
+            ret: Box::new(substitute_type(ret, substitutions)),
+        },
+        other => other.clone(),
     }
 }
 
@@ -1641,46 +1970,78 @@ fn reaches_module(
 }
 
 fn fn_info_from_sig(sig: &FnSig) -> FnInfo {
+    let generics = sig
+        .generics
+        .iter()
+        .map(|generic| generic.name.0.clone())
+        .collect::<HashSet<_>>();
     FnInfo {
-        params: sig.params.iter().flat_map(param_types_from_ast).collect(),
+        params: sig
+            .params
+            .iter()
+            .flat_map(|param| param_types_from_ast(param, &generics))
+            .collect(),
         ret: sig
             .ret
             .as_ref()
-            .map(hir_type_from_ast_shallow)
+            .map(|ty| hir_type_from_ast_shallow(ty, &generics))
             .unwrap_or_else(HirType::v),
         effects: sig.effects.iter().map(|effect| effect.0.clone()).collect(),
+        generics: sig
+            .generics
+            .iter()
+            .map(|generic| generic.name.0.clone())
+            .collect(),
     }
 }
 
-fn param_types_from_ast(param: &sing_ast::Param) -> Vec<HirType> {
-    let ty = hir_type_from_ast_shallow(&param.ty);
+fn param_types_from_ast(param: &sing_ast::Param, generics: &HashSet<String>) -> Vec<HirType> {
+    let ty = hir_type_from_ast_shallow(&param.ty, generics);
     param.names.iter().map(|_| ty.clone()).collect()
 }
 
-fn hir_type_from_ast_shallow(ty: &AstType) -> HirType {
+fn hir_type_from_ast_shallow(ty: &AstType, generics: &HashSet<String>) -> HirType {
     match ty {
+        AstType::Prim(Prim::Any) => HirType::Any,
         AstType::Prim(prim) => HirType::Prim(prim_name(prim).to_string()),
-        AstType::Path(path) => HirType::Struct(path_name(path)),
+        AstType::Path(path) => {
+            let name = path_name(path);
+            if generics.contains(&name) {
+                HirType::Generic(name)
+            } else {
+                HirType::Struct(name)
+            }
+        }
         AstType::Ref { mutable, inner } => HirType::Ref {
             mutable: *mutable,
-            inner: Box::new(hir_type_from_ast_shallow(inner)),
+            inner: Box::new(hir_type_from_ast_shallow(inner, generics)),
         },
-        AstType::Raw(inner) => HirType::Raw(Box::new(hir_type_from_ast_shallow(inner))),
-        AstType::Slice(inner) => HirType::Slice(Box::new(hir_type_from_ast_shallow(inner))),
-        AstType::Array { inner, .. } => HirType::Array {
-            inner: Box::new(hir_type_from_ast_shallow(inner)),
-        },
-        AstType::Option(inner) => HirType::Option(Box::new(hir_type_from_ast_shallow(inner))),
-        AstType::Result { ok, err } => HirType::Result {
-            ok: Box::new(hir_type_from_ast_shallow(ok)),
-            err: Box::new(hir_type_from_ast_shallow(err)),
-        },
-        AstType::Tuple(types) => {
-            HirType::Tuple(types.iter().map(hir_type_from_ast_shallow).collect())
+        AstType::Raw(inner) => HirType::Raw(Box::new(hir_type_from_ast_shallow(inner, generics))),
+        AstType::Slice(inner) => {
+            HirType::Slice(Box::new(hir_type_from_ast_shallow(inner, generics)))
         }
+        AstType::Array { inner, .. } => HirType::Array {
+            inner: Box::new(hir_type_from_ast_shallow(inner, generics)),
+        },
+        AstType::Option(inner) => {
+            HirType::Option(Box::new(hir_type_from_ast_shallow(inner, generics)))
+        }
+        AstType::Result { ok, err } => HirType::Result {
+            ok: Box::new(hir_type_from_ast_shallow(ok, generics)),
+            err: Box::new(hir_type_from_ast_shallow(err, generics)),
+        },
+        AstType::Tuple(types) => HirType::Tuple(
+            types
+                .iter()
+                .map(|ty| hir_type_from_ast_shallow(ty, generics))
+                .collect(),
+        ),
         AstType::Fn { params, ret } => HirType::Fn {
-            params: params.iter().map(hir_type_from_ast_shallow).collect(),
-            ret: Box::new(hir_type_from_ast_shallow(ret)),
+            params: params
+                .iter()
+                .map(|ty| hir_type_from_ast_shallow(ty, generics))
+                .collect(),
+            ret: Box::new(hir_type_from_ast_shallow(ret, generics)),
         },
         AstType::Dyn(path) => HirType::Dyn(path.as_ref().map(path_name)),
     }

@@ -218,6 +218,8 @@ Escapes are `\n`, `\r`, `\t`, `\0`, `\\`, `\"`, and `\'`. Invalid escapes are di
 
 Default literal inference:
 
+- Integer suffixes `i1`, `i2`, `i4`, `i8`, `iz`, `u1`, `u2`, `u4`, `u8`, and `uz` select the exact literal type.
+- Float suffixes `f4` and `f8` select the exact literal type.
 - Unsuffixed integer defaults to `i4` until context chooses another integer type.
 - Unsuffixed float defaults to `f4` until context chooses another float type.
 - Strings default to `s`.
@@ -313,6 +315,8 @@ Rules:
 
 - Generic parameters are type-level names.
 - Bounds constrain traits or structural requirements.
+- Bounds are resolved when declarations are checked; unresolved bounds are diagnostics.
+- Calls instantiate generic parameters from argument types and substitute them into return types.
 - Monomorphization is the default native-code strategy unless a later backend chooses sharing.
 - Generic inference must prefer the shortest unambiguous source form.
 

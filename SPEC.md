@@ -73,6 +73,12 @@ From strongest to weakest:
 - Struct object literals must use known fields and include all declared fields.
 - Enum unit variants resolve as values of their enum type.
 - Function bodies are checked against declared returns and declared effects.
+- Generic calls instantiate type parameters from argument types and substitute returns.
+- Literal suffixes infer exact primitive types; unsuffixed numeric literals use contextual types when available.
+- Tuple, option, result, ref, raw pointer, slice, array, and function types are checked structurally.
+- Raw pointer creation requires an unsafe `U` item boundary.
+- Statements after terminating control flow are reported as unreachable.
+- Bare `*` lowers to HIR `Any`, preserving the compact wildcard contract.
 - HIR lowers grouped params and fields into explicit per-name entries.
 - Diagnostics use stable codes:
   - `E0001` parse error
@@ -94,6 +100,9 @@ From strongest to weakest:
   - `E0406` invalid propagation
   - `E0407` wrong arg count
   - `E0408` invalid binary op
+  - `E0410` generic instantiation mismatch
+  - `E0501` unsafe operation outside `U`
+  - `E0502` unreachable statement
   - `E0601` unknown effect
   - `E0602` undeclared effect use
   - `E0701` attribute contract violation
