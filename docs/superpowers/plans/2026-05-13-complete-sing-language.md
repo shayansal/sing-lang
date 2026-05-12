@@ -133,11 +133,11 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_parse/tests/negative.rs`
 - Create: `crates/sing_parse/tests/escapes.rs`
 
-- [ ] Add `Spanned<T>` wrappers or parallel span tables without breaking stable AST JSON.
-- [ ] Add parser error expected-token sets.
-- [ ] Add recovery so one bad item does not hide later item diagnostics.
-- [ ] Add negative parser tests for missing delimiters, bad attrs, bad literals, and bad statements.
-- [ ] Add string, char, and byte-string escape tests.
+- [x] Add `Spanned<T>` wrappers or parallel span tables without breaking stable AST JSON.
+- [x] Add parser error expected-token sets.
+- [x] Add recovery so one bad item does not hide later item diagnostics.
+- [x] Add negative parser tests for missing delimiters and bad statements.
+- [x] Add string, char, and byte-string escape tests.
 - [ ] Add conformance fixtures that assert parser output remains stable after formatting.
 
 ### Task 3: Real Semantic Model

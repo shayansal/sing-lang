@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+use serde::{Deserialize, Serialize};
 use sing_ast::*;
 use thiserror::Error;
 
@@ -9,12 +10,38 @@ use crate::{
     pratt,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Error)]
-#[error("{message} at {start}..{end}")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Error)]
+#[error("{code}: {message} at {start}..{end}")]
 pub struct ParseError {
+    pub code: String,
     pub message: String,
     pub start: usize,
     pub end: usize,
+    pub expected: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SourceSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeSpan {
+    pub kind: String,
+    pub span: SourceSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpannedFile {
+    pub file: File,
+    pub spans: Vec<NodeSpan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecoveredFile {
+    pub file: File,
+    pub diagnostics: Vec<ParseError>,
 }
 
 type PResult<T> = Result<T, ParseError>;
@@ -24,9 +51,11 @@ pub fn parse_file(src: &str) -> Result<File, Vec<ParseError>> {
         errors
             .into_iter()
             .map(|error| ParseError {
+                code: "P0000".to_string(),
                 message: error.message,
                 start: error.span.start,
                 end: error.span.end,
+                expected: Vec::new(),
             })
             .collect::<Vec<_>>()
     })?;
@@ -36,27 +65,111 @@ pub fn parse_file(src: &str) -> Result<File, Vec<ParseError>> {
         .map_err(|error| vec![error])
 }
 
+pub fn parse_file_spanned(src: &str) -> Result<SpannedFile, Vec<ParseError>> {
+    let tokens = lex(src).map_err(|errors| {
+        errors
+            .into_iter()
+            .map(|error| ParseError {
+                code: "P0000".to_string(),
+                message: error.message,
+                start: error.span.start,
+                end: error.span.end,
+                expected: Vec::new(),
+            })
+            .collect::<Vec<_>>()
+    })?;
+
+    Parser::new(tokens)
+        .parse_spanned_file()
+        .map_err(|error| vec![error])
+}
+
+pub fn parse_file_recovering(src: &str) -> RecoveredFile {
+    let tokens = match lex(src) {
+        Ok(tokens) => tokens,
+        Err(errors) => {
+            let diagnostics = errors
+                .into_iter()
+                .map(|error| ParseError {
+                    code: "P0000".to_string(),
+                    message: error.message,
+                    start: error.span.start,
+                    end: error.span.end,
+                    expected: Vec::new(),
+                })
+                .collect();
+            return RecoveredFile {
+                file: File { items: Vec::new() },
+                diagnostics,
+            };
+        }
+    };
+
+    Parser::new(tokens).parse_recovering_file()
+}
+
 struct Parser {
     tokens: Vec<Token>,
     pos: usize,
+    spans: Vec<NodeSpan>,
 }
 
 impl Parser {
     fn new(tokens: Vec<Token>) -> Self {
-        Self { tokens, pos: 0 }
+        Self {
+            tokens,
+            pos: 0,
+            spans: Vec::new(),
+        }
     }
 
     fn parse_file(mut self) -> PResult<File> {
+        self.parse_file_inner()
+    }
+
+    fn parse_spanned_file(mut self) -> PResult<SpannedFile> {
+        let file = self.parse_file_inner()?;
+        Ok(SpannedFile {
+            file,
+            spans: self.spans,
+        })
+    }
+
+    fn parse_recovering_file(mut self) -> RecoveredFile {
+        let mut items = Vec::new();
+        let mut diagnostics = Vec::new();
+        self.skip_semis();
+        while !self.at_eof() {
+            match self.parse_item() {
+                Ok(item) => items.push(item),
+                Err(error) => {
+                    diagnostics.push(error);
+                    self.skip_to_item_boundary();
+                }
+            }
+            self.skip_semis();
+        }
+        RecoveredFile {
+            file: File { items },
+            diagnostics,
+        }
+    }
+
+    fn parse_file_inner(&mut self) -> PResult<File> {
+        let start = self.current_span().start;
         let mut items = Vec::new();
         self.skip_semis();
         while !self.at_eof() {
             items.push(self.parse_item()?);
             self.skip_semis();
         }
+        let end = self.previous_end();
+        self.record_span("file", start, end);
         Ok(File { items })
     }
 
     fn parse_item(&mut self) -> PResult<Item> {
+        let start = self.current_span().start;
         let mut attrs = Vec::new();
         while let Tok::Attr(attr) = self.peek().clone() {
             self.bump();
@@ -133,9 +246,18 @@ impl Parser {
                 self.bump();
                 ItemKind::Test(self.parse_test_decl()?)
             }
-            _ => return self.err("expected top-level item"),
+            _ => {
+                return self.err_expected(
+                    "expected top-level item",
+                    [
+                        "`m`", "`u`", "`a`", "`k`", "`t`", "`e`", "`q`", "`i`", "`f`", "`x`",
+                        "`p`", "`#`",
+                    ],
+                )
+            }
         };
 
+        self.record_span("item", start, self.previous_end());
         Ok(Item { attrs, kind })
     }
 
@@ -245,6 +367,7 @@ impl Parser {
     }
 
     fn parse_fn_sig(&mut self) -> PResult<FnSig> {
+        let start = self.current_span().start;
         let name = self.parse_path()?;
         let generics = self.parse_generics()?;
         let params = self.parse_params()?;
@@ -262,13 +385,15 @@ impl Parser {
         } else {
             Vec::new()
         };
-        Ok(FnSig {
+        let sig = FnSig {
             name,
             generics,
             params,
             ret,
             effects,
-        })
+        };
+        self.record_span("fn_sig", start, self.previous_end());
+        Ok(sig)
     }
 
     fn parse_params(&mut self) -> PResult<Vec<Param>> {
@@ -295,19 +420,25 @@ impl Parser {
     }
 
     fn parse_body(&mut self) -> PResult<Block> {
+        let start = self.current_span().start;
         if self.eat_sym(':') {
             let stmts = self.parse_stmt_seq(false)?;
-            Ok(Block { stmts })
+            let block = Block { stmts };
+            self.record_span("block", start, self.previous_end());
+            Ok(block)
         } else {
             self.parse_block()
         }
     }
 
     fn parse_block(&mut self) -> PResult<Block> {
+        let start = self.current_span().start;
         self.expect_sym('{')?;
         let stmts = self.parse_stmt_seq(true)?;
         self.expect_sym('}')?;
-        Ok(Block { stmts })
+        let block = Block { stmts };
+        self.record_span("block", start, self.previous_end());
+        Ok(block)
     }
 
     fn parse_stmt_seq(&mut self, in_block: bool) -> PResult<Vec<Stmt>> {
@@ -579,7 +710,10 @@ impl Parser {
     }
 
     fn parse_expr(&mut self) -> PResult<Expr> {
-        self.parse_expr_bp(0)
+        let start = self.current_span().start;
+        let expr = self.parse_expr_bp(0)?;
+        self.record_span("expr", start, self.previous_end());
+        Ok(expr)
     }
 
     fn parse_expr_bp(&mut self, min_prec: u8) -> PResult<Expr> {
@@ -794,6 +928,12 @@ impl Parser {
         while self.eat_sym(';') {}
     }
 
+    fn skip_to_item_boundary(&mut self) {
+        while !self.at_eof() && !self.check_sym(';') && !self.check_sym('}') {
+            self.bump();
+        }
+    }
+
     fn at_eof(&self) -> bool {
         matches!(self.peek(), Tok::Eof)
     }
@@ -873,7 +1013,10 @@ impl Parser {
     fn expect_ident(&mut self) -> PResult<Ident> {
         match self.bump().tok {
             Tok::Id(id) => Ok(Ident(id)),
-            other => self.err_at(format!("expected identifier, found {}", fmt_tok(&other))),
+            other => self.err_at_expected(
+                format!("expected identifier, found {}", fmt_tok(&other)),
+                ["identifier"],
+            ),
         }
     }
 
@@ -890,7 +1033,7 @@ impl Parser {
         if self.eat_sym(expected) {
             Ok(())
         } else {
-            self.err(format!("expected `{expected}`"))
+            self.err_expected(format!("expected `{expected}`"), [format!("`{expected}`")])
         }
     }
 
@@ -915,7 +1058,7 @@ impl Parser {
         if self.eat_op(expected) {
             Ok(())
         } else {
-            self.err(format!("expected `{expected}`"))
+            self.err_expected(format!("expected `{expected}`"), [format!("`{expected}`")])
         }
     }
 
@@ -939,11 +1082,21 @@ impl Parser {
     }
 
     fn err<T>(&self, message: impl Into<String>) -> PResult<T> {
+        self.err_expected(message, std::iter::empty::<String>())
+    }
+
+    fn err_expected<T, I, S>(&self, message: impl Into<String>, expected: I) -> PResult<T>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
         let span = self.current_span();
         Err(ParseError {
+            code: "P0001".to_string(),
             message: message.into(),
             start: span.start,
             end: span.end,
+            expected: expected.into_iter().map(Into::into).collect(),
         })
     }
 
@@ -951,11 +1104,34 @@ impl Parser {
         self.err(message)
     }
 
+    fn err_at_expected<T, I, S>(&self, message: impl Into<String>, expected: I) -> PResult<T>
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.err_expected(message, expected)
+    }
+
     fn current_span(&self) -> Range<usize> {
         self.tokens
             .get(self.pos)
             .map(|token| token.span.clone())
             .unwrap_or_else(|| 0..0)
+    }
+
+    fn previous_end(&self) -> usize {
+        self.pos
+            .checked_sub(1)
+            .and_then(|idx| self.tokens.get(idx))
+            .map(|token| token.span.end)
+            .unwrap_or_else(|| self.current_span().end)
+    }
+
+    fn record_span(&mut self, kind: impl Into<String>, start: usize, end: usize) {
+        self.spans.push(NodeSpan {
+            kind: kind.into(),
+            span: SourceSpan { start, end },
+        });
     }
 }
 

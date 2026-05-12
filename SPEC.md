@@ -62,6 +62,8 @@ From strongest to weakest:
 - Macro arguments are parsed as permissive expression lists; `p name{...}` is represented as an object expression using `name` as the object type.
 - `sing check` treats conditions as bool-compatible when they are `b` or numeric. This is an alpha semantic choice in favor of fewer source tokens.
 - `sing check` emits compact JSON by default to reduce AI/tooling token load.
+- `b"..."` byte strings lex as one literal and currently lower through `Expr::String` to keep the stable AST unchanged until the byte value model lands.
+- Parser V2 exposes sidecar spans through `parse_file_spanned` and recovery through `parse_file_recovering`; the stable AST JSON remains unchanged.
 
 ## Semantic Model Slice
 

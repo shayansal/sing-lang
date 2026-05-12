@@ -59,6 +59,11 @@ impl Lexer<'_> {
             let start = self.pos;
             let ch = self.peek_char().expect("pos is in bounds");
 
+            if self.src[self.pos..].starts_with("b\"") {
+                self.lex_byte_string();
+                continue;
+            }
+
             if is_id_start(ch) {
                 self.lex_id_or_attr();
                 continue;
@@ -244,6 +249,16 @@ impl Lexer<'_> {
     fn lex_string(&mut self) {
         let start = self.pos;
         self.pos += 1;
+        self.lex_string_body(start);
+    }
+
+    fn lex_byte_string(&mut self) {
+        let start = self.pos;
+        self.pos += 2;
+        self.lex_string_body(start);
+    }
+
+    fn lex_string_body(&mut self, start: usize) {
         let mut out = String::new();
         while let Some(ch) = self.peek_char() {
             self.pos += ch.len_utf8();
