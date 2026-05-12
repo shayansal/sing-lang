@@ -12,6 +12,37 @@ use sing_hir::{
 };
 use sing_parse::{lex, parse_file, Tok};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SymbolId(pub u64);
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Namespace {
+    Module,
+    Type,
+    Trait,
+    Value,
+    Variant,
+    Macro,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Symbol {
+    pub id: SymbolId,
+    pub namespace: Namespace,
+    pub module: String,
+    pub name: String,
+    pub qualified: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CheckedPackage {
+    pub ok: bool,
+    pub diagnostics: Vec<Diagnostic>,
+    pub modules: Vec<String>,
+    pub symbols: Vec<Symbol>,
+    pub files: Vec<CheckedProgram>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckedProgram {
     pub ok: bool,
@@ -50,6 +81,146 @@ pub fn check_source(src: &str) -> CheckedProgram {
         ok,
         diagnostics: checker.diagnostics,
         hir: ok.then_some(hir),
+    }
+}
+
+pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPackage {
+    let parsed = sources
+        .into_iter()
+        .map(|(name, src)| {
+            let spans = SpanIndex::new(src);
+            let file = parse_file(src).map_err(|errors| {
+                errors
+                    .into_iter()
+                    .map(|error| {
+                        Diagnostic::error(
+                            "E0001",
+                            "parse error",
+                            Span::new(error.start, error.end),
+                            error.message,
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            });
+            (name.to_string(), src.to_string(), spans, file)
+        })
+        .collect::<Vec<_>>();
+
+    let mut diagnostics = Vec::new();
+    let mut modules = Vec::new();
+    let mut imports_by_module: HashMap<String, Vec<String>> = HashMap::new();
+    let mut fn_exports: HashMap<String, HashMap<String, FnInfo>> = HashMap::new();
+    let mut symbols = Vec::new();
+
+    for (filename, _, _, file_result) in &parsed {
+        let Ok(file) = file_result else {
+            continue;
+        };
+        let module =
+            module_name(file).unwrap_or_else(|| filename.trim_end_matches(".sg").to_string());
+        modules.push(module.clone());
+        symbols.push(raw_symbol(&module, Namespace::Module, &module));
+
+        for item in &file.items {
+            match &item.kind {
+                ItemKind::Use(paths) => {
+                    imports_by_module
+                        .entry(module.clone())
+                        .or_default()
+                        .extend(paths.iter().map(path_name));
+                }
+                ItemKind::Type(decl) => {
+                    symbols.push(raw_symbol(&module, Namespace::Type, &decl.name.0));
+                }
+                ItemKind::Enum(decl) => {
+                    symbols.push(raw_symbol(&module, Namespace::Type, &decl.name.0));
+                    for variant in &decl.variants {
+                        let name = match variant {
+                            Variant::Unit(name)
+                            | Variant::Tuple(name, _)
+                            | Variant::Struct(name, _) => &name.0,
+                        };
+                        symbols.push(raw_symbol(&module, Namespace::Variant, name));
+                    }
+                }
+                ItemKind::Trait(decl) => {
+                    symbols.push(raw_symbol(&module, Namespace::Trait, &decl.name.0));
+                }
+                ItemKind::Fn(decl) => {
+                    let name = path_name(&decl.sig.name);
+                    symbols.push(raw_symbol(&module, Namespace::Value, &name));
+                    fn_exports
+                        .entry(module.clone())
+                        .or_default()
+                        .insert(name, fn_info_from_sig(&decl.sig));
+                }
+                ItemKind::Extern(sig) => {
+                    let name = path_name(&sig.name);
+                    symbols.push(raw_symbol(&module, Namespace::Value, &name));
+                    fn_exports
+                        .entry(module.clone())
+                        .or_default()
+                        .insert(name, fn_info_from_sig(sig));
+                }
+                ItemKind::Const { name, .. } => {
+                    symbols.push(raw_symbol(&module, Namespace::Value, &name.0));
+                }
+                ItemKind::Macro(call) => {
+                    symbols.push(raw_symbol(&module, Namespace::Macro, &call.name.0));
+                }
+                ItemKind::Module(_)
+                | ItemKind::Alias { .. }
+                | ItemKind::Impl(_)
+                | ItemKind::Test(_) => {}
+            }
+        }
+    }
+
+    modules.sort();
+    modules.dedup();
+    symbols = assign_symbol_ids(symbols);
+
+    for cycle in import_cycles(&imports_by_module) {
+        diagnostics.push(Diagnostic::error(
+            "E0801",
+            format!("import cycle involving `{cycle}`"),
+            Span::new(0, 0),
+            "module participates in an import cycle",
+        ));
+    }
+
+    let mut files = Vec::new();
+    for (_, _, spans, file_result) in parsed {
+        match file_result {
+            Ok(file) => {
+                let module = module_name(&file).unwrap_or_default();
+                let mut imported_fns = HashMap::new();
+                for import in imports_by_module.get(&module).into_iter().flatten() {
+                    if let Some(exports) = fn_exports.get(import) {
+                        imported_fns.extend(exports.clone());
+                    }
+                }
+                let mut checker = Checker::new_with_imports(file, spans, imported_fns);
+                let hir = checker.check();
+                let ok = checker.diagnostics.is_empty();
+                files.push(CheckedProgram {
+                    ok,
+                    diagnostics: checker.diagnostics.clone(),
+                    hir: ok.then_some(hir),
+                });
+                diagnostics.extend(checker.diagnostics);
+            }
+            Err(errors) => diagnostics.extend(errors),
+        }
+    }
+
+    let ok = diagnostics.is_empty();
+    CheckedPackage {
+        ok,
+        diagnostics,
+        modules,
+        symbols,
+        files,
     }
 }
 
@@ -131,6 +302,14 @@ struct Checker {
 
 impl Checker {
     fn new(file: File, spans: SpanIndex) -> Self {
+        Self::new_with_imports(file, spans, HashMap::new())
+    }
+
+    fn new_with_imports(
+        file: File,
+        spans: SpanIndex,
+        imported_fns: HashMap<String, FnInfo>,
+    ) -> Self {
         let mut checker = Self {
             file,
             spans,
@@ -143,6 +322,7 @@ impl Checker {
             enum_variants: HashMap::new(),
         };
         checker.seed_std();
+        checker.fns.extend(imported_fns);
         checker
     }
 
@@ -1390,6 +1570,120 @@ fn slice_inner(ty: &HirType) -> Option<&HirType> {
 
 fn block_contains_string(block: &Block) -> bool {
     block.stmts.iter().any(stmt_contains_string)
+}
+
+fn module_name(file: &File) -> Option<String> {
+    file.items.iter().find_map(|item| match &item.kind {
+        ItemKind::Module(path) => Some(path_name(path)),
+        _ => None,
+    })
+}
+
+fn raw_symbol(module: &str, namespace: Namespace, name: &str) -> Symbol {
+    let qualified = if namespace == Namespace::Module {
+        module.to_string()
+    } else {
+        format!("{module}.{name}")
+    };
+    Symbol {
+        id: SymbolId(0),
+        namespace,
+        module: module.to_string(),
+        name: name.to_string(),
+        qualified,
+    }
+}
+
+fn assign_symbol_ids(mut symbols: Vec<Symbol>) -> Vec<Symbol> {
+    symbols.sort_by(|a, b| {
+        a.qualified
+            .cmp(&b.qualified)
+            .then_with(|| format!("{:?}", a.namespace).cmp(&format!("{:?}", b.namespace)))
+    });
+    symbols.dedup_by(|a, b| a.qualified == b.qualified && a.namespace == b.namespace);
+    for (idx, symbol) in symbols.iter_mut().enumerate() {
+        symbol.id = SymbolId(idx as u64 + 1);
+    }
+    symbols
+}
+
+fn import_cycles(imports: &HashMap<String, Vec<String>>) -> Vec<String> {
+    let mut cycles = Vec::new();
+    for module in imports.keys() {
+        let mut visiting = HashSet::new();
+        if reaches_module(module, module, imports, &mut visiting) {
+            cycles.push(module.clone());
+        }
+    }
+    cycles.sort();
+    cycles.dedup();
+    cycles
+}
+
+fn reaches_module(
+    start: &str,
+    current: &str,
+    imports: &HashMap<String, Vec<String>>,
+    visiting: &mut HashSet<String>,
+) -> bool {
+    let Some(next) = imports.get(current) else {
+        return false;
+    };
+    for import in next {
+        if import == start {
+            return true;
+        }
+        if visiting.insert(import.clone()) && reaches_module(start, import, imports, visiting) {
+            return true;
+        }
+    }
+    false
+}
+
+fn fn_info_from_sig(sig: &FnSig) -> FnInfo {
+    FnInfo {
+        params: sig.params.iter().flat_map(param_types_from_ast).collect(),
+        ret: sig
+            .ret
+            .as_ref()
+            .map(hir_type_from_ast_shallow)
+            .unwrap_or_else(HirType::v),
+        effects: sig.effects.iter().map(|effect| effect.0.clone()).collect(),
+    }
+}
+
+fn param_types_from_ast(param: &sing_ast::Param) -> Vec<HirType> {
+    let ty = hir_type_from_ast_shallow(&param.ty);
+    param.names.iter().map(|_| ty.clone()).collect()
+}
+
+fn hir_type_from_ast_shallow(ty: &AstType) -> HirType {
+    match ty {
+        AstType::Prim(prim) => HirType::Prim(prim_name(prim).to_string()),
+        AstType::Path(path) => HirType::Struct(path_name(path)),
+        AstType::Ref { mutable, inner } => HirType::Ref {
+            mutable: *mutable,
+            inner: Box::new(hir_type_from_ast_shallow(inner)),
+        },
+        AstType::Raw(inner) => HirType::Raw(Box::new(hir_type_from_ast_shallow(inner))),
+        AstType::Slice(inner) => HirType::Slice(Box::new(hir_type_from_ast_shallow(inner))),
+        AstType::Array { inner, .. } => HirType::Array {
+            inner: Box::new(hir_type_from_ast_shallow(inner)),
+        },
+        AstType::Option(inner) => HirType::Option(Box::new(hir_type_from_ast_shallow(inner))),
+        AstType::Result { ok, err } => HirType::Result {
+            ok: Box::new(hir_type_from_ast_shallow(ok)),
+            err: Box::new(hir_type_from_ast_shallow(err)),
+        },
+        AstType::Tuple(types) => {
+            HirType::Tuple(types.iter().map(hir_type_from_ast_shallow).collect())
+        }
+        AstType::Fn { params, ret } => HirType::Fn {
+            params: params.iter().map(hir_type_from_ast_shallow).collect(),
+            ret: Box::new(hir_type_from_ast_shallow(ret)),
+        },
+        AstType::Dyn(path) => HirType::Dyn(path.as_ref().map(path_name)),
+    }
 }
 
 fn stmt_contains_string(stmt: &Stmt) -> bool {

@@ -150,11 +150,11 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_sem/src/types.rs`
 - Create: `crates/sing_sem/tests/modules.rs`
 
-- [ ] Add stable `SymbolId`.
-- [ ] Add namespaces for modules, types, traits, values, variants, macros.
-- [ ] Add multi-file `check_package`.
-- [ ] Add real import graph resolution.
-- [ ] Add cycle diagnostics.
+- [x] Add stable `SymbolId`.
+- [x] Add namespaces for modules, types, traits, values, variants, macros.
+- [x] Add multi-file `check_package`.
+- [x] Add real import graph resolution for imported module function signatures.
+- [x] Add cycle diagnostics.
 - [ ] Add alias and const resolution.
 - [ ] Add trait and impl lookup.
 
