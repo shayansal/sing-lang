@@ -523,6 +523,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sing_mir"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "sing_ast",
+ "sing_parse",
+ "thiserror",
+]
+
+[[package]]
 name = "sing_parse"
 version = "0.1.0-alpha.1"
 dependencies = [

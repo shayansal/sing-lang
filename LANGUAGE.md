@@ -379,6 +379,21 @@ Undefined behavior is only possible through explicitly unsafe operations. Safe S
 
 Full macro expansion is reserved for a later milestone.
 
+## HIR And MIR
+
+HIR is the typed summary layer. It keeps source compact by expanding grouped params and fields into explicit per-name entries, attaching stable symbol references, and preserving source spans in sidecar metadata.
+
+MIR is the first control-flow IR. It desugars compact statements and expressions into:
+
+- explicit basic blocks
+- explicit assign, mutate, require, ensure, and eval operations
+- return and branch terminators
+- local def/use dataflow summaries
+- dead-block summaries
+- optimization hooks such as constant folding
+
+MIR exists to save AI repair tokens: tools can inspect explicit control flow and dataflow instead of re-deriving them from minimum-token source.
+
 ## Standard Library Shape
 
 Stdlib APIs must be token-minimal and AI-readable.

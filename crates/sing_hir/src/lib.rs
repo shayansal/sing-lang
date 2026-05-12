@@ -5,6 +5,24 @@ pub struct Program {
     pub module: Option<String>,
     pub imports: Vec<Vec<String>>,
     pub items: Vec<Item>,
+    pub meta: Vec<NodeMeta>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SymbolRef(pub u64);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SourceSpan {
+    pub start: usize,
+    pub end: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NodeMeta {
+    pub symbol: SymbolRef,
+    pub kind: String,
+    pub name: Option<String>,
+    pub span: SourceSpan,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

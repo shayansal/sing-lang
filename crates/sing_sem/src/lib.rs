@@ -13,8 +13,8 @@ use sing_ast::{
 };
 use sing_diag::{Diagnostic, Span};
 use sing_hir::{
-    Field as HirField, Fn as HirFn, FnSig as HirFnSig, Item as HirItem, Param as HirParam, Program,
-    Type as HirType, Variant as HirVariant,
+    Field as HirField, Fn as HirFn, FnSig as HirFnSig, Item as HirItem, NodeMeta,
+    Param as HirParam, Program, SourceSpan, SymbolRef, Type as HirType, Variant as HirVariant,
 };
 use sing_parse::{lex, parse_file, Tok};
 
@@ -497,11 +497,21 @@ impl Checker {
 
     fn lower_program(&mut self) -> Program {
         let mut items = Vec::new();
+        let mut meta = Vec::new();
         let ast_items = self.file.items.clone();
         for item in &ast_items {
             self.validate_item_attrs(item);
             match &item.kind {
+                ItemKind::Module(path) => {
+                    meta.push(self.item_meta("module", Some(&path_name(path))));
+                }
+                ItemKind::Use(paths) => {
+                    for path in paths {
+                        meta.push(self.item_meta("use", Some(&path_name(path))));
+                    }
+                }
                 ItemKind::Const { name, ty, expr } => {
+                    meta.push(self.item_meta("const", Some(&name.0)));
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
@@ -518,6 +528,7 @@ impl Checker {
                     });
                 }
                 ItemKind::Type(decl) => {
+                    meta.push(self.item_meta("type", Some(&decl.name.0)));
                     self.enforce_type_attrs(
                         &item.attrs,
                         &decl.fields,
@@ -531,6 +542,7 @@ impl Checker {
                     });
                 }
                 ItemKind::Enum(decl) => {
+                    meta.push(self.item_meta("enum", Some(&decl.name.0)));
                     let variants = decl
                         .variants
                         .iter()
@@ -560,6 +572,7 @@ impl Checker {
                     });
                 }
                 ItemKind::Trait(decl) => {
+                    meta.push(self.item_meta("trait", Some(&decl.name.0)));
                     let fns = decl.fns.iter().map(|sig| self.lower_fn_sig(sig)).collect();
                     items.push(HirItem::Trait {
                         name: decl.name.0.clone(),
@@ -567,6 +580,7 @@ impl Checker {
                     });
                 }
                 ItemKind::Impl(decl) => {
+                    meta.push(self.item_meta("impl", Some(&decl.trait_name.0)));
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
@@ -587,17 +601,27 @@ impl Checker {
                         items: decl.items.len(),
                     });
                 }
-                ItemKind::Fn(decl) => items.push(HirItem::Fn(self.check_fn(item, decl))),
+                ItemKind::Fn(decl) => {
+                    meta.push(self.item_meta("fn", Some(&path_name(&decl.sig.name))));
+                    items.push(HirItem::Fn(self.check_fn(item, decl)));
+                }
                 ItemKind::Extern(sig) => {
+                    meta.push(self.item_meta("extern", Some(&path_name(&sig.name))));
                     let hir_sig = self.lower_fn_sig(sig);
                     self.enforce_signature_attrs(&item.attrs, sig, &hir_sig, &path_name(&sig.name));
                     items.push(HirItem::Extern(hir_sig));
                 }
-                ItemKind::Macro(call) => items.push(HirItem::Macro {
-                    name: call.name.0.clone(),
-                    arg_count: call.args.len(),
-                }),
+                ItemKind::Macro(call) => {
+                    meta.push(self.item_meta("macro", Some(&call.name.0)));
+                    items.push(HirItem::Macro {
+                        name: call.name.0.clone(),
+                        arg_count: call.args.len(),
+                    });
+                }
                 ItemKind::Test(test) => {
+                    meta.push(
+                        self.item_meta("test", test.name.as_ref().map(|name| name.0.as_str())),
+                    );
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
@@ -610,7 +634,9 @@ impl Checker {
                         ty: typed.ty,
                     });
                 }
-                ItemKind::Module(_) | ItemKind::Use(_) | ItemKind::Alias { .. } => {}
+                ItemKind::Alias { name, .. } => {
+                    meta.push(self.item_meta("alias", Some(&name.0)));
+                }
             }
         }
 
@@ -618,6 +644,7 @@ impl Checker {
             module: self.module.clone(),
             imports: self.imports.clone(),
             items,
+            meta,
         }
     }
 
@@ -651,6 +678,28 @@ impl Checker {
                 left,
                 "choose one attr",
             );
+        }
+    }
+
+    fn item_meta(&self, kind: &str, name: Option<&str>) -> NodeMeta {
+        let name = name.map(str::to_string);
+        let span = name
+            .as_deref()
+            .map(|name| self.spans.name(name))
+            .unwrap_or(Span::new(0, 0));
+        let symbol_name = name.as_deref().unwrap_or(kind);
+        NodeMeta {
+            symbol: SymbolRef(stable_hir_symbol(
+                self.module.as_deref().unwrap_or(""),
+                kind,
+                symbol_name,
+            )),
+            kind: kind.to_string(),
+            name,
+            span: SourceSpan {
+                start: span.start,
+                end: span.end,
+            },
         }
     }
 
@@ -2160,6 +2209,21 @@ fn raw_symbol(module: &str, namespace: Namespace, name: &str) -> Symbol {
         name: name.to_string(),
         qualified,
     }
+}
+
+fn stable_hir_symbol(module: &str, kind: &str, name: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in module
+        .bytes()
+        .chain([b':'])
+        .chain(kind.bytes())
+        .chain([b':'])
+        .chain(name.bytes())
+    {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash.max(1)
 }
 
 fn assign_symbol_ids(mut symbols: Vec<Symbol>) -> Vec<Symbol> {

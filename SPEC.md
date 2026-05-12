@@ -83,6 +83,9 @@ From strongest to weakest:
 - Attrs are checked for known markers, placement, conflicts, ABI/layout safety, and effect contracts.
 - The alpha memory model rejects use-after-move, borrow conflicts, mutation while borrowed, escaping local refs, and parallel data-race risks.
 - HIR lowers grouped params and fields into explicit per-name entries.
+- HIR carries sidecar metadata with source spans and stable symbol references.
+- MIR lowers functions into explicit basic blocks with operations, terminators, def/use dataflow, dead-block summaries, and optimization hooks.
+- MIR constant-folds simple integer arithmetic before later interpreter/codegen milestones consume it.
 - Diagnostics use stable codes:
   - `E0001` parse error
   - `E0101` duplicate symbol

@@ -200,13 +200,13 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_mir/src/lib.rs`
 - Create: `crates/sing_mir/tests/lower.rs`
 
-- [ ] Add rich HIR nodes with spans and symbols.
-- [ ] Desugar compact syntax.
-- [ ] Add MIR control-flow graph.
-- [ ] Add dataflow framework.
-- [ ] Add constant folding.
-- [ ] Add dead code and reachability checks.
-- [ ] Add optimization hooks.
+- [x] Add rich HIR nodes with spans and symbols.
+- [x] Desugar compact syntax.
+- [x] Add MIR control-flow graph.
+- [x] Add dataflow framework.
+- [x] Add constant folding.
+- [x] Add dead code and reachability checks.
+- [x] Add optimization hooks.
 
 ### Task 7: Interpreter Oracle
 

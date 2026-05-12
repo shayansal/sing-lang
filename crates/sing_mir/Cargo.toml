@@ -1,0 +1,12 @@
+[package]
+name = "sing_mir"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+sing_ast = { path = "../sing_ast" }
+sing_parse = { path = "../sing_parse" }
+thiserror.workspace = true
