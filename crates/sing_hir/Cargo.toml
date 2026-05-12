@@ -1,0 +1,9 @@
+[package]
+name = "sing_hir"
+version = "0.1.0-alpha.2"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true

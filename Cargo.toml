@@ -2,6 +2,9 @@
 members = [
     "crates/sing_ast",
     "crates/sing_parse",
+    "crates/sing_diag",
+    "crates/sing_hir",
+    "crates/sing_sem",
     "crates/sing_cli",
 ]
 resolver = "2"

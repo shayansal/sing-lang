@@ -493,6 +493,21 @@ dependencies = [
  "clap",
  "serde_json",
  "sing_parse",
+ "sing_sem",
+]
+
+[[package]]
+name = "sing_diag"
+version = "0.1.0-alpha.2"
+dependencies = [
+ "serde",
+]
+
+[[package]]
+name = "sing_hir"
+version = "0.1.0-alpha.2"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -505,6 +520,19 @@ dependencies = [
  "serde",
  "serde_json",
  "sing_ast",
+ "thiserror",
+]
+
+[[package]]
+name = "sing_sem"
+version = "0.1.0-alpha.2"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sing_ast",
+ "sing_diag",
+ "sing_hir",
+ "sing_parse",
  "thiserror",
 ]
 

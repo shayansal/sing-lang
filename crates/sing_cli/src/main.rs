@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 
 #[derive(Debug, Parser)]
 #[command(name = "sing")]
-#[command(about = "Sing v1-alpha parser tools")]
+#[command(about = "Sing v1-alpha compiler tools")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -14,7 +14,7 @@ struct Cli {
 enum Command {
     /// Print the parsed JSON AST for a .sg file.
     Ast { file: PathBuf },
-    /// Stub for the future semantic checker.
+    /// Print compact JSON diagnostics and typed HIR for a .sg file.
     Check { file: PathBuf },
     /// Stub for the future formatter.
     Fmt { file: PathBuf },
@@ -26,7 +26,7 @@ fn main() -> ExitCode {
     let cli = Cli::parse();
     match cli.command {
         Command::Ast { file } => print_ast(file),
-        Command::Check { file } => stub("check", file),
+        Command::Check { file } => check(file),
         Command::Fmt { file } => stub("fmt", file),
         Command::Min { file } => stub("min", file),
     }
@@ -58,6 +58,31 @@ fn print_ast(file: PathBuf) -> ExitCode {
             }
             ExitCode::FAILURE
         }
+    }
+}
+
+fn check(file: PathBuf) -> ExitCode {
+    let src = match fs::read_to_string(&file) {
+        Ok(src) => src,
+        Err(error) => {
+            eprintln!("failed to read {}: {error}", file.display());
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let checked = sing_sem::check_source(&src);
+    match serde_json::to_string(&checked) {
+        Ok(json) => println!("{json}"),
+        Err(error) => {
+            eprintln!("failed to serialize check output: {error}");
+            return ExitCode::FAILURE;
+        }
+    }
+
+    if checked.ok {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
     }
 }
 

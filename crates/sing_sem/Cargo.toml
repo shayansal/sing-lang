@@ -1,0 +1,17 @@
+[package]
+name = "sing_sem"
+version = "0.1.0-alpha.2"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+sing_ast = { path = "../sing_ast" }
+sing_diag = { path = "../sing_diag" }
+sing_hir = { path = "../sing_hir" }
+sing_parse = { path = "../sing_parse" }
+thiserror.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
