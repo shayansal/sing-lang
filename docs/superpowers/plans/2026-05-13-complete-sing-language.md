@@ -216,10 +216,12 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_interp/tests/run_examples.rs`
 - Modify: `crates/sing_cli/src/main.rs`
 
-- [ ] Add `sing run`.
-- [ ] Execute expressions, statements, functions, structs, enums, loops, result/option flow.
-- [ ] Add stdlib builtins for `out`, `sqrt`, and `sum`.
-- [ ] Use interpreter outputs as semantic conformance fixtures.
+- [x] Add `sing run`.
+- [x] Execute core expressions, local binds, returns, and simple function calls.
+- [x] Add stdlib builtins for `out` and `sqrt`.
+- [ ] Execute structs, enums, loops, result/option flow.
+- [ ] Add stdlib builtin `sum`.
+- [x] Use interpreter outputs as semantic conformance fixtures for `hello`.
 
 ### Task 8: Native Backend
 

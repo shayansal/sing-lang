@@ -401,4 +401,4 @@ Sing must optimize for:
 - deterministic tooling
 - fast AI repair loops
 
-The interpreter is a semantic oracle, not the final performance target. Native codegen must eventually target object files and linked binaries.
+The interpreter is a semantic oracle, not the final performance target. The current oracle executes `main`, local binds, returns, integer arithmetic, simple calls, and `out`; native codegen must eventually target object files and linked binaries.

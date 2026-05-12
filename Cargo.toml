@@ -6,6 +6,7 @@ members = [
     "crates/sing_hir",
     "crates/sing_token",
     "crates/sing_sem",
+    "crates/sing_interp",
     "crates/sing_cli",
 ]
 resolver = "2"

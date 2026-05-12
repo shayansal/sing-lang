@@ -22,6 +22,8 @@ enum Command {
     Min { file: PathBuf },
     /// Print compact JSON token-cost metrics for a source file.
     Tokens { file: PathBuf },
+    /// Execute a .sg file with the interpreter oracle.
+    Run { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -32,6 +34,7 @@ fn main() -> ExitCode {
         Command::Fmt { file } => stub("fmt", file),
         Command::Min { file } => stub("min", file),
         Command::Tokens { file } => tokens(file),
+        Command::Run { file } => run(file),
     }
 }
 
@@ -105,6 +108,27 @@ fn tokens(file: PathBuf) -> ExitCode {
         }
         Err(error) => {
             eprintln!("failed to serialize token cost: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn run(file: PathBuf) -> ExitCode {
+    let src = match fs::read_to_string(&file) {
+        Ok(src) => src,
+        Err(error) => {
+            eprintln!("failed to read {}: {error}", file.display());
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match sing_interp::run_source(&src) {
+        Ok(run) => {
+            print!("{}", run.output);
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("{error}");
             ExitCode::FAILURE
         }
     }

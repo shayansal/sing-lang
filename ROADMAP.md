@@ -24,11 +24,11 @@
 - Real multi-file semantic model.
 - Full type inference, generics, effects, attrs, and memory checking.
 - HIR to MIR and optimizer foundations.
-- Interpreter/oracle execution.
+- Interpreter/oracle execution beyond the current `main`/arithmetic/`out` foundation.
 - Formatting and minification.
 - Macro expansion.
 - Borrow checking and effect validation.
 - Lowering to IR.
 - Native code generation.
 
-No later milestone is implemented in this repository yet.
+Later milestones are being implemented incrementally on verifiable compiler slices.
