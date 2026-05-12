@@ -1,0 +1,155 @@
+---
+source: crates/sing_parse/tests/examples.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "attrs": [
+        "C"
+      ],
+      "kind": {
+        "Type": {
+          "fields": [
+            {
+              "names": [
+                "x",
+                "y",
+                "z"
+              ],
+              "ty": {
+                "Prim": "F4"
+              }
+            }
+          ],
+          "generics": [],
+          "name": "V"
+        }
+      }
+    },
+    {
+      "attrs": [
+        "K"
+      ],
+      "kind": {
+        "Fn": {
+          "body": {
+            "stmts": [
+              {
+                "Expr": {
+                  "Call": {
+                    "args": [
+                      {
+                        "Binary": {
+                          "lhs": {
+                            "Binary": {
+                              "lhs": {
+                                "Binary": {
+                                  "lhs": {
+                                    "Field": {
+                                      "base": {
+                                        "Ident": "v"
+                                      },
+                                      "name": "x"
+                                    }
+                                  },
+                                  "op": "Mul",
+                                  "rhs": {
+                                    "Field": {
+                                      "base": {
+                                        "Ident": "v"
+                                      },
+                                      "name": "x"
+                                    }
+                                  }
+                                }
+                              },
+                              "op": "Add",
+                              "rhs": {
+                                "Binary": {
+                                  "lhs": {
+                                    "Field": {
+                                      "base": {
+                                        "Ident": "v"
+                                      },
+                                      "name": "y"
+                                    }
+                                  },
+                                  "op": "Mul",
+                                  "rhs": {
+                                    "Field": {
+                                      "base": {
+                                        "Ident": "v"
+                                      },
+                                      "name": "y"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "op": "Add",
+                          "rhs": {
+                            "Binary": {
+                              "lhs": {
+                                "Field": {
+                                  "base": {
+                                    "Ident": "v"
+                                  },
+                                  "name": "z"
+                                }
+                              },
+                              "op": "Mul",
+                              "rhs": {
+                                "Field": {
+                                  "base": {
+                                    "Ident": "v"
+                                  },
+                                  "name": "z"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    ],
+                    "callee": {
+                      "Ident": "sqrt"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "sig": {
+            "effects": [],
+            "generics": [],
+            "name": [
+              "len"
+            ],
+            "params": [
+              {
+                "names": [
+                  "v"
+                ],
+                "ty": {
+                  "Ref": {
+                    "inner": {
+                      "Path": [
+                        "V"
+                      ]
+                    },
+                    "mutable": false
+                  }
+                }
+              }
+            ],
+            "ret": {
+              "Prim": "F4"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,113 @@
+---
+source: crates/sing_parse/tests/examples.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "attrs": [],
+      "kind": {
+        "Module": [
+          "M"
+        ]
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Use": [
+          [
+            "sm"
+          ]
+        ]
+      }
+    },
+    {
+      "attrs": [
+        "K",
+        "V"
+      ],
+      "kind": {
+        "Fn": {
+          "body": {
+            "stmts": [
+              {
+                "Require": {
+                  "Binary": {
+                    "lhs": {
+                      "Field": {
+                        "base": {
+                          "Ident": "a"
+                        },
+                        "name": "len"
+                      }
+                    },
+                    "op": "Eq",
+                    "rhs": {
+                      "Field": {
+                        "base": {
+                          "Ident": "b"
+                        },
+                        "name": "len"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "Expr": {
+                  "Call": {
+                    "args": [
+                      {
+                        "Binary": {
+                          "lhs": {
+                            "Ident": "a"
+                          },
+                          "op": "Mul",
+                          "rhs": {
+                            "Ident": "b"
+                          }
+                        }
+                      }
+                    ],
+                    "callee": {
+                      "Ident": "sum"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "sig": {
+            "effects": [],
+            "generics": [],
+            "name": [
+              "dot"
+            ],
+            "params": [
+              {
+                "names": [
+                  "a",
+                  "b"
+                ],
+                "ty": {
+                  "Ref": {
+                    "inner": {
+                      "Slice": {
+                        "Prim": "F4"
+                      }
+                    },
+                    "mutable": false
+                  }
+                }
+              }
+            ],
+            "ret": {
+              "Prim": "F4"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

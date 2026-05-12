@@ -1,0 +1,64 @@
+---
+source: crates/sing_parse/tests/examples.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "attrs": [],
+      "kind": {
+        "Module": [
+          "H"
+        ]
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Use": [
+          [
+            "io"
+          ]
+        ]
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Fn": {
+          "body": {
+            "stmts": [
+              {
+                "Expr": {
+                  "Call": {
+                    "args": [
+                      {
+                        "String": "hi"
+                      }
+                    ],
+                    "callee": {
+                      "Ident": "out"
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "sig": {
+            "effects": [
+              "iw"
+            ],
+            "generics": [],
+            "name": [
+              "main"
+            ],
+            "params": [],
+            "ret": {
+              "Prim": "V"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

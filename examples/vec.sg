@@ -1,0 +1,1 @@
+C t V{x,y,z:f4};K f len(v:&V)>f4:sqrt(v.x*v.x+v.y*v.y+v.z*v.z)

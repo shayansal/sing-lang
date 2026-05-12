@@ -1,0 +1,17 @@
+[package]
+name = "sing_parse"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+ariadne.workspace = true
+chumsky.workspace = true
+serde.workspace = true
+sing_ast = { path = "../sing_ast" }
+thiserror.workspace = true
+
+[dev-dependencies]
+insta.workspace = true
+serde_json.workspace = true

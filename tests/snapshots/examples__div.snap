@@ -1,0 +1,94 @@
+---
+source: crates/sing_parse/tests/examples.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "attrs": [],
+      "kind": {
+        "Enum": {
+          "generics": [],
+          "name": "E",
+          "variants": [
+            {
+              "Unit": "Div0"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "attrs": [
+        "Z"
+      ],
+      "kind": {
+        "Fn": {
+          "body": {
+            "stmts": [
+              {
+                "Bind": {
+                  "expr": {
+                    "Ternary": {
+                      "cond": {
+                        "Int": "0"
+                      },
+                      "else_expr": {
+                        "Binary": {
+                          "lhs": {
+                            "Ident": "a"
+                          },
+                          "op": "Div",
+                          "rhs": {
+                            "Ident": "b"
+                          }
+                        }
+                      },
+                      "then_expr": {
+                        "Path": [
+                          "Div0"
+                        ]
+                      }
+                    }
+                  },
+                  "name": "b",
+                  "ty": null
+                }
+              }
+            ]
+          },
+          "sig": {
+            "effects": [],
+            "generics": [],
+            "name": [
+              "div"
+            ],
+            "params": [
+              {
+                "names": [
+                  "a",
+                  "b"
+                ],
+                "ty": {
+                  "Prim": "I4"
+                }
+              }
+            ],
+            "ret": {
+              "Result": {
+                "err": {
+                  "Path": [
+                    "E"
+                  ]
+                },
+                "ok": {
+                  "Prim": "I4"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "crates/sing_ast",
+    "crates/sing_parse",
+    "crates/sing_cli",
+]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "MIT"
+repository = "https://github.com/Shayansal/sing-lang"
+
+[workspace.dependencies]
+ariadne = "0.4"
+chumsky = "0.9"
+clap = { version = "4", features = ["derive"] }
+insta = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "1"

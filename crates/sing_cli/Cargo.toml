@@ -1,0 +1,15 @@
+[package]
+name = "sing_cli"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "sing"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+serde_json.workspace = true
+sing_parse = { path = "../sing_parse" }

@@ -1,0 +1,176 @@
+---
+source: crates/sing_parse/tests/examples.rs
+expression: json
+---
+{
+  "items": [
+    {
+      "attrs": [],
+      "kind": {
+        "Module": [
+          "S"
+        ]
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Use": [
+          [
+            "wb"
+          ],
+          [
+            "pg"
+          ],
+          [
+            "au"
+          ],
+          [
+            "se"
+          ]
+        ]
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Enum": {
+          "generics": [],
+          "name": "R",
+          "variants": [
+            {
+              "Unit": "a"
+            },
+            {
+              "Unit": "u"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Type": {
+          "fields": [
+            {
+              "names": [
+                "id"
+              ],
+              "ty": {
+                "Prim": "U8"
+              }
+            },
+            {
+              "names": [
+                "e",
+                "n"
+              ],
+              "ty": {
+                "Prim": "S"
+              }
+            },
+            {
+              "names": [
+                "r"
+              ],
+              "ty": {
+                "Path": [
+                  "R"
+                ]
+              }
+            }
+          ],
+          "generics": [],
+          "name": "U"
+        }
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Macro": {
+          "args": [
+            {
+              "Ident": "U"
+            }
+          ],
+          "name": "store"
+        }
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Macro": {
+          "args": [
+            {
+              "Field": {
+                "base": {
+                  "Ident": "U"
+                },
+                "name": "e"
+              }
+            }
+          ],
+          "name": "idx"
+        }
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Macro": {
+          "args": [
+            {
+              "Ident": "U"
+            }
+          ],
+          "name": "crud"
+        }
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Macro": {
+          "args": [
+            {
+              "Ident": "U"
+            }
+          ],
+          "name": "rest"
+        }
+      }
+    },
+    {
+      "attrs": [],
+      "kind": {
+        "Macro": {
+          "args": [
+            {
+              "Object": {
+                "fields": [
+                  [
+                    "a",
+                    "Missing"
+                  ],
+                  [
+                    "u",
+                    {
+                      "Ident": "self"
+                    }
+                  ]
+                ],
+                "ty": [
+                  "rbac"
+                ]
+              }
+            }
+          ],
+          "name": "rbac"
+        }
+      }
+    }
+  ]
+}
