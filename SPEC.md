@@ -86,6 +86,7 @@ From strongest to weakest:
 - HIR carries sidecar metadata with source spans and stable symbol references.
 - MIR lowers functions into explicit basic blocks with operations, terminators, def/use dataflow, dead-block summaries, and optimization hooks.
 - MIR constant-folds simple integer arithmetic before later interpreter/codegen milestones consume it.
+- `sing run` executes functions, structs, enum unit values, tuples, loops, break/continue, option/result wrapping and propagation, and builtins `out`, `sqrt`, and `sum`.
 - Diagnostics use stable codes:
   - `E0001` parse error
   - `E0101` duplicate symbol

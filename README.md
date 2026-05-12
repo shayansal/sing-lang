@@ -4,7 +4,7 @@ Sing is a minimum-token, native-speed, AI-first systems programming language. Th
 
 The north-star goal is to be the least AI-token-consuming programming language in the world. That means compact syntax is not cosmetic: every compiler surface should preserve tiny source, deterministic lowering, compact machine-readable diagnostics, and rich IR that lets AI tools reason with fewer prompt tokens.
 
-This repository currently contains the v1-alpha parser milestone plus semantic and IR slices: `.sg` source is lexed, parsed into the stable AST, checked for names/types/effects/memory rules, lowered to typed HIR with metadata, and lowered further into MIR control-flow/dataflow summaries. Code generation, full macro expansion, LLVM, Cranelift, async, GPU support, and package management remain intentionally out of scope.
+This repository currently contains the v1-alpha parser milestone plus semantic, IR, and interpreter slices: `.sg` source is lexed, parsed into the stable AST, checked for names/types/effects/memory rules, lowered to typed HIR with metadata, lowered further into MIR control-flow/dataflow summaries, and executable through the interpreter oracle. Code generation, full macro expansion, LLVM, Cranelift, async, GPU support, and package management remain intentionally out of scope.
 
 ```sing
 m H;u io;f main()>v !iw:out("hi")

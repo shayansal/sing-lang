@@ -394,6 +394,22 @@ MIR is the first control-flow IR. It desugars compact statements and expressions
 
 MIR exists to save AI repair tokens: tools can inspect explicit control flow and dataflow instead of re-deriving them from minimum-token source.
 
+## Interpreter Oracle
+
+`sing run` is the semantic oracle before native codegen. It executes the compact source directly enough to validate language meaning:
+
+- function calls and returns
+- local binds and mutations
+- struct literals and field access
+- enum unit values
+- tuples
+- option and result wrapping/propagation
+- range and while loops
+- `b`/`c` break and continue
+- builtins `out`, `sqrt`, and `sum`
+
+The interpreter is intentionally not the final performance story. Its job is to make semantics testable before Cranelift or another native backend exists.
+
 ## Standard Library Shape
 
 Stdlib APIs must be token-minimal and AI-readable.

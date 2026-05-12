@@ -219,8 +219,8 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Add `sing run`.
 - [x] Execute core expressions, local binds, returns, and simple function calls.
 - [x] Add stdlib builtins for `out` and `sqrt`.
-- [ ] Execute structs, enums, loops, result/option flow.
-- [ ] Add stdlib builtin `sum`.
+- [x] Execute structs, enums, loops, result/option flow.
+- [x] Add stdlib builtin `sum`.
 - [x] Use interpreter outputs as semantic conformance fixtures for `hello`.
 
 ### Task 8: Native Backend
