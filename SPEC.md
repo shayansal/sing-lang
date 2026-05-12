@@ -79,6 +79,9 @@ From strongest to weakest:
 - Raw pointer creation requires an unsafe `U` item boundary.
 - Statements after terminating control flow are reported as unreachable.
 - Bare `*` lowers to HIR `Any`, preserving the compact wildcard contract.
+- `sy` is the compact umbrella effect for system-boundary effects.
+- Attrs are checked for known markers, placement, conflicts, ABI/layout safety, and effect contracts.
+- The alpha memory model rejects use-after-move, borrow conflicts, mutation while borrowed, escaping local refs, and parallel data-race risks.
 - HIR lowers grouped params and fields into explicit per-name entries.
 - Diagnostics use stable codes:
   - `E0001` parse error
@@ -103,6 +106,14 @@ From strongest to weakest:
   - `E0410` generic instantiation mismatch
   - `E0501` unsafe operation outside `U`
   - `E0502` unreachable statement
+  - `E0503` use after move
+  - `E0504` borrow conflict
+  - `E0505` mutation while borrowed
+  - `E0506` escaping local reference
+  - `E0507` parallel data-race risk
   - `E0601` unknown effect
   - `E0602` undeclared effect use
   - `E0701` attribute contract violation
+  - `E0702` unknown attr
+  - `E0703` conflicting attrs
+  - `E0704` invalid attr placement

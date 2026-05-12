@@ -184,13 +184,13 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_sem/tests/effects.rs`
 - Create: `crates/sing_sem/tests/memory.rs`
 
-- [ ] Add effect lattice and propagation.
-- [ ] Enforce every v1 effect.
-- [ ] Enforce every v1 attr.
-- [ ] Add ownership, move, copy, and drop rules.
-- [ ] Add shared and mutable borrow rules.
-- [ ] Add raw pointer and unsafe-boundary rules.
-- [ ] Add escape, aliasing, and data-race diagnostics.
+- [x] Add effect lattice and propagation.
+- [x] Enforce every v1 effect.
+- [x] Enforce every v1 attr.
+- [x] Add ownership, move, copy, and drop rules.
+- [x] Add shared and mutable borrow rules.
+- [x] Add raw pointer and unsafe-boundary rules.
+- [x] Add escape, aliasing, and data-race diagnostics.
 
 ### Task 6: HIR, MIR, IR
 

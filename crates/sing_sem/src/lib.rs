@@ -1,4 +1,10 @@
+mod attrs;
+mod effects;
+mod memory;
+
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use serde::{Deserialize, Serialize};
 use sing_ast::{
@@ -288,6 +294,7 @@ struct Scope {
     values: HashMap<String, HirType>,
     generics: HashSet<String>,
     unsafe_allowed: bool,
+    memory: Rc<RefCell<memory::MemoryState>>,
 }
 
 struct Checker {
@@ -396,6 +403,7 @@ impl Checker {
                         values: HashMap::new(),
                         generics: HashSet::new(),
                         unsafe_allowed: false,
+                        memory: Rc::new(RefCell::new(memory::MemoryState::default())),
                     };
                     let hir_ty = self.lower_type(ty, &scope);
                     self.insert_type(name.0.clone(), TypeDef::Alias(hir_ty));
@@ -405,6 +413,7 @@ impl Checker {
                         values: HashMap::new(),
                         generics: HashSet::new(),
                         unsafe_allowed: false,
+                        memory: Rc::new(RefCell::new(memory::MemoryState::default())),
                     };
                     let expected = ty.as_ref().map(|ty| self.lower_type(ty, &scope));
                     let typed = self.check_expr(expr, &scope, expected.as_ref());
@@ -490,12 +499,14 @@ impl Checker {
         let mut items = Vec::new();
         let ast_items = self.file.items.clone();
         for item in &ast_items {
+            self.validate_item_attrs(item);
             match &item.kind {
                 ItemKind::Const { name, ty, expr } => {
                     let scope = Scope {
                         values: HashMap::new(),
                         generics: HashSet::new(),
                         unsafe_allowed: false,
+                        memory: Rc::new(RefCell::new(memory::MemoryState::default())),
                     };
                     let hir_ty = ty
                         .as_ref()
@@ -507,6 +518,12 @@ impl Checker {
                     });
                 }
                 ItemKind::Type(decl) => {
+                    self.enforce_type_attrs(
+                        &item.attrs,
+                        &decl.fields,
+                        &decl.generics,
+                        &decl.name.0,
+                    );
                     let fields = self.struct_fields(&decl.name.0);
                     items.push(HirItem::Struct {
                         name: decl.name.0.clone(),
@@ -554,6 +571,7 @@ impl Checker {
                         values: HashMap::new(),
                         generics: HashSet::new(),
                         unsafe_allowed: false,
+                        memory: Rc::new(RefCell::new(memory::MemoryState::default())),
                     };
                     if !self.types.contains_key(&decl.trait_name.0) {
                         self.error(
@@ -570,7 +588,11 @@ impl Checker {
                     });
                 }
                 ItemKind::Fn(decl) => items.push(HirItem::Fn(self.check_fn(item, decl))),
-                ItemKind::Extern(sig) => items.push(HirItem::Extern(self.lower_fn_sig(sig))),
+                ItemKind::Extern(sig) => {
+                    let hir_sig = self.lower_fn_sig(sig);
+                    self.enforce_signature_attrs(&item.attrs, sig, &hir_sig, &path_name(&sig.name));
+                    items.push(HirItem::Extern(hir_sig));
+                }
                 ItemKind::Macro(call) => items.push(HirItem::Macro {
                     name: call.name.0.clone(),
                     arg_count: call.args.len(),
@@ -580,6 +602,7 @@ impl Checker {
                         values: HashMap::new(),
                         generics: HashSet::new(),
                         unsafe_allowed: false,
+                        memory: Rc::new(RefCell::new(memory::MemoryState::default())),
                     };
                     let typed = self.check_expr(&test.expr, &scope, None);
                     items.push(HirItem::Test {
@@ -598,10 +621,44 @@ impl Checker {
         }
     }
 
+    fn validate_item_attrs(&mut self, item: &Item) {
+        let context = attrs::context(&item.kind);
+        let names = attrs::names(&item.attrs);
+        for attr in &item.attrs {
+            if !attrs::is_known(&attr.0) {
+                self.error(
+                    "E0702",
+                    format!("unknown attr `{}`", attr.0),
+                    &attr.0,
+                    "attr is not in the v1-alpha set",
+                );
+                continue;
+            }
+            if !attrs::is_allowed_on(&attr.0, context) {
+                self.error(
+                    "E0704",
+                    format!("attr `{}` is not valid on this item", attr.0),
+                    &attr.0,
+                    "attr placement is invalid",
+                );
+            }
+        }
+
+        for (left, right) in attrs::conflicts(&names) {
+            self.error(
+                "E0703",
+                format!("attrs `{left}` and `{right}` conflict"),
+                left,
+                "choose one attr",
+            );
+        }
+    }
+
     fn check_fn(&mut self, item: &Item, decl: &FnDecl) -> HirFn {
         let sig = self.lower_fn_sig(&decl.sig);
         let mut scope = scope_for_generics(&decl.sig.generics);
         scope.unsafe_allowed = has_attr(&item.attrs, "U");
+        self.enforce_signature_attrs(&item.attrs, &decl.sig, &sig, &path_name(&decl.sig.name));
         for param in &sig.params {
             if scope
                 .values
@@ -615,12 +672,14 @@ impl Checker {
                     "parameter already exists",
                 );
             }
+            scope.memory.borrow_mut().define(param.name.clone());
         }
 
         let body_type = decl.body.as_ref().map(|body| {
             let typed = self.check_block(body, &mut scope, Some(&sig.ret));
+            let declared_effects = sig.effects.iter().cloned().collect::<HashSet<_>>();
             for effect in &typed.effects {
-                if !sig.effects.iter().any(|declared| declared == effect) {
+                if !effects::is_allowed(&declared_effects, effect) {
                     self.error(
                         "E0602",
                         format!("effect `{effect}` is used but not declared"),
@@ -629,7 +688,13 @@ impl Checker {
                     );
                 }
             }
-            self.enforce_attrs(&item.attrs, body, &path_name(&decl.sig.name));
+            self.enforce_fn_attrs(
+                &item.attrs,
+                &sig,
+                body,
+                &typed.effects,
+                &path_name(&decl.sig.name),
+            );
             let assignable = self.is_assignable(&sig.ret, &typed.ty);
             self.expect_assignable(&sig.ret, &typed.ty, &path_name(&decl.sig.name), "E0401");
             if assignable {
@@ -642,18 +707,138 @@ impl Checker {
         HirFn { sig, body_type }
     }
 
-    fn enforce_attrs(&mut self, attrs: &[Attr], body: &Block, fn_name: &str) {
-        let attrs = attrs
-            .iter()
-            .map(|attr| attr.0.as_str())
-            .collect::<HashSet<_>>();
-        if attrs.contains("H") && block_contains_string(body) {
+    fn enforce_fn_attrs(
+        &mut self,
+        attrs: &[Attr],
+        sig: &HirFnSig,
+        body: &Block,
+        effects: &HashSet<String>,
+        fn_name: &str,
+    ) {
+        let attrs = attrs::names(attrs);
+        for attr in &attrs {
+            for effect in effects {
+                if attrs::forbids_effect(attr, effect) {
+                    self.error(
+                        "E0701",
+                        format!("attr `{attr}` forbids effect `{effect}`"),
+                        fn_name,
+                        "attr contract rejects this effect",
+                    );
+                }
+            }
+        }
+
+        if attrs::has(&attrs, "H") && block_contains_string(body) {
             self.error(
                 "E0701",
                 format!("function `{fn_name}` is marked H but uses a string literal"),
                 fn_name,
                 "H means no heap-facing literals in v1-alpha.2",
             );
+        }
+        if attrs::has(&attrs, "Z") && memory::body_has_contract(body) {
+            self.error(
+                "E0701",
+                format!("function `{fn_name}` is marked Z but uses runtime contracts"),
+                fn_name,
+                "Z requires proof/result paths instead of panic contracts",
+            );
+        }
+        if attrs::has(&attrs, "P") && memory::body_has_mutation_or_mut_borrow(body) {
+            self.error(
+                "E0507",
+                format!("function `{fn_name}` is marked P but has shared-state mutation risk"),
+                fn_name,
+                "parallelized code cannot mutate or take mutable borrows",
+            );
+        }
+        if attrs::has(&attrs, "D")
+            && (sig
+                .params
+                .iter()
+                .any(|param| memory::contains_dyn(&param.ty))
+                || memory::contains_dyn(&sig.ret))
+        {
+            self.error(
+                "E0701",
+                format!("function `{fn_name}` is marked D but uses dynamic dispatch"),
+                fn_name,
+                "D forbids dynamic trait objects",
+            );
+        }
+    }
+
+    fn enforce_signature_attrs(
+        &mut self,
+        attrs: &[Attr],
+        ast_sig: &FnSig,
+        hir_sig: &HirFnSig,
+        fn_name: &str,
+    ) {
+        let attrs = attrs::names(attrs);
+        if attrs::has(&attrs, "C") {
+            if !ast_sig.generics.is_empty() {
+                self.error(
+                    "E0701",
+                    format!("function `{fn_name}` is marked C but has generics"),
+                    fn_name,
+                    "C ABI functions cannot be generic",
+                );
+            }
+            for param in &hir_sig.params {
+                if !memory::is_ffi_safe_type(&param.ty) {
+                    self.error(
+                        "E0701",
+                        format!(
+                            "parameter `{}` is not C ABI safe: `{}`",
+                            param.name,
+                            display_type(&param.ty)
+                        ),
+                        &param.name,
+                        "C ABI type must have stable layout",
+                    );
+                }
+            }
+            if !memory::is_ffi_safe_type(&hir_sig.ret) {
+                self.error(
+                    "E0701",
+                    format!(
+                        "return type `{}` is not C ABI safe",
+                        display_type(&hir_sig.ret)
+                    ),
+                    fn_name,
+                    "C ABI return type must have stable layout",
+                );
+            }
+        }
+    }
+
+    fn enforce_type_attrs(
+        &mut self,
+        attrs: &[Attr],
+        fields: &[sing_ast::Field],
+        generics: &[sing_ast::Generic],
+        type_name: &str,
+    ) {
+        let attrs = attrs::names(attrs);
+        if !attrs::has(&attrs, "C") {
+            return;
+        }
+        let scope = scope_for_generics(generics);
+        for field in fields {
+            let ty = self.lower_type(&field.ty, &scope);
+            if !memory::is_ffi_safe_type(&ty) {
+                self.error(
+                    "E0701",
+                    format!(
+                        "type `{type_name}` is marked C but field type `{}` is not ABI safe",
+                        display_type(&ty)
+                    ),
+                    &field.names[0].0,
+                    "C layout field must have stable ABI",
+                );
+            }
         }
     }
 
@@ -704,6 +889,15 @@ impl Checker {
                 }
             }
             Stmt::Return(expr) => {
+                if memory::borrowed_local(expr).is_some_and(|name| scope.values.contains_key(name))
+                {
+                    self.error(
+                        "E0506",
+                        "reference to local value cannot escape",
+                        memory::borrowed_local(expr).unwrap_or("&"),
+                        "borrowed local would outlive this scope",
+                    );
+                }
                 let typed = self.check_expr(expr, scope, expected);
                 if let Some(expected) = expected {
                     self.expect_assignable(expected, &typed.ty, "return", "E0401");
@@ -732,6 +926,7 @@ impl Checker {
                 scope
                     .values
                     .insert(var.0.clone(), HirType::Prim("iz".to_string()));
+                scope.memory.borrow_mut().define(var.0.clone());
                 let body_t = self.check_stmt(body, scope, None);
                 let mut effects = start_t.effects;
                 effects.extend(end_t.effects);
@@ -756,29 +951,43 @@ impl Checker {
                 let expected_ty = ty.as_ref().map(|ty| self.lower_type(ty, scope));
                 let typed = self.check_expr(expr, scope, expected_ty.as_ref().or(expected));
                 let bind_ty = expected_ty.unwrap_or_else(|| typed.ty.clone());
+                let mut returns_expr = false;
                 if let Some(existing) = scope.values.get(&name.0) {
                     let return_position_match =
                         expected.is_some_and(|expected| self.is_assignable(expected, &typed.ty));
-                    if !return_position_match && !self.is_assignable(existing, &bind_ty) {
+                    if return_position_match {
+                        returns_expr = true;
+                    } else if !self.is_assignable(existing, &bind_ty) {
                         self.error(
                             "E0401",
                             format!("cannot bind `{}` with incompatible type", name.0),
                             &name.0,
                             "existing local has a different type",
                         );
+                    } else {
+                        scope.memory.borrow_mut().assign(&name.0);
                     }
                 } else {
                     scope.values.insert(name.0.clone(), bind_ty);
+                    scope.memory.borrow_mut().define(name.0.clone());
                 }
-                typed
+                Typed {
+                    ty: if returns_expr { typed.ty } else { HirType::v() },
+                    effects: typed.effects,
+                }
             }
             Stmt::Mut { place, expr } => {
                 let place_ty = match place {
-                    sing_ast::Place::Ident(name) => scope
-                        .values
-                        .get(&name.0)
-                        .cloned()
-                        .unwrap_or(HirType::Unknown),
+                    sing_ast::Place::Ident(name) => {
+                        if let Some(error) = scope.memory.borrow_mut().mutate(&name.0) {
+                            self.memory_error(error, &name.0);
+                        }
+                        scope
+                            .values
+                            .get(&name.0)
+                            .cloned()
+                            .unwrap_or(HirType::Unknown)
+                    }
                     sing_ast::Place::Field { base, name } => {
                         let base_t = self.check_expr(base, scope, None);
                         self.field_type(&base_t.ty, &name.0)
@@ -790,12 +999,28 @@ impl Checker {
                 };
                 let typed = self.check_expr(expr, scope, Some(&place_ty));
                 self.expect_assignable(&place_ty, &typed.ty, "mutation", "E0401");
+                if let sing_ast::Place::Ident(name) = place {
+                    scope.memory.borrow_mut().assign(&name.0);
+                }
                 Typed {
                     ty: HirType::v(),
                     effects: typed.effects,
                 }
             }
-            Stmt::Expr(expr) => self.check_expr(expr, scope, expected),
+            Stmt::Expr(expr) => {
+                if matches!(expected, Some(HirType::Ref { .. }))
+                    && memory::borrowed_local(expr)
+                        .is_some_and(|name| scope.values.contains_key(name))
+                {
+                    self.error(
+                        "E0506",
+                        "reference to local value cannot escape",
+                        memory::borrowed_local(expr).unwrap_or("&"),
+                        "borrowed local would outlive this scope",
+                    );
+                }
+                self.check_expr(expr, scope, expected)
+            }
         }
     }
 
@@ -804,6 +1029,9 @@ impl Checker {
             Expr::Missing => Typed::pure(HirType::Any),
             Expr::Ident(name) => {
                 if let Some(ty) = scope.values.get(&name.0) {
+                    if let Some(error) = scope.memory.borrow_mut().use_value(&name.0, ty) {
+                        self.memory_error(error, &name.0);
+                    }
                     Typed::pure(ty.clone())
                 } else if let Some(ty) = self.consts.get(&name.0) {
                     Typed::pure(ty.clone())
@@ -897,18 +1125,22 @@ impl Checker {
             }
             Expr::Call { callee, args } => self.check_call(callee, args, scope),
             Expr::Unary { op, expr } => {
+                if matches!(op, UnaryOp::Ref | UnaryOp::RefMut) {
+                    let mutable = matches!(op, UnaryOp::RefMut);
+                    let typed = self.check_borrow_expr(expr, scope, mutable);
+                    return Typed {
+                        ty: HirType::Ref {
+                            mutable,
+                            inner: Box::new(typed.ty),
+                        },
+                        effects: typed.effects,
+                    };
+                }
                 let typed = self.check_expr(expr, scope, None);
                 let ty = match op {
                     UnaryOp::Neg if is_numeric(&typed.ty) => typed.ty.clone(),
                     UnaryOp::Not => HirType::b(),
-                    UnaryOp::Ref => HirType::Ref {
-                        mutable: false,
-                        inner: Box::new(typed.ty.clone()),
-                    },
-                    UnaryOp::RefMut => HirType::Ref {
-                        mutable: true,
-                        inner: Box::new(typed.ty.clone()),
-                    },
+                    UnaryOp::Ref | UnaryOp::RefMut => unreachable!("handled before unary checking"),
                     UnaryOp::Raw => {
                         if !scope.unsafe_allowed {
                             self.error(
@@ -997,6 +1229,22 @@ impl Checker {
                 }
             }
         }
+    }
+
+    fn check_borrow_expr(&mut self, expr: &Expr, scope: &Scope, mutable: bool) -> Typed {
+        if let Expr::Ident(name) = expr {
+            if let Some(ty) = scope.values.get(&name.0) {
+                if let Some(error) = scope.memory.borrow_mut().borrow(&name.0, mutable) {
+                    self.memory_error(error, &name.0);
+                }
+                return Typed::pure(ty.clone());
+            }
+        }
+        self.check_expr(expr, scope, None)
+    }
+
+    fn memory_error(&mut self, error: memory::MemoryError, name: &str) {
+        self.error(error.code(), error.message(name), name, error.label());
     }
 
     fn check_object(&mut self, path: &Path, fields: &[(Ident, Expr)], scope: &Scope) -> Typed {
@@ -1307,9 +1555,8 @@ impl Checker {
         let scope = scope_for_generics(&sig.generics);
         self.validate_generic_bounds(&sig.generics, &scope);
         let hir = self.lower_fn_sig(sig);
-        let known_effects = known_effects();
         for effect in &hir.effects {
-            if !known_effects.contains(effect.as_str()) {
+            if !effects::is_known(effect) {
                 self.error(
                     "E0601",
                     format!("unknown effect `{effect}`"),
@@ -1628,6 +1875,7 @@ fn scope_for_generics(generics: &[sing_ast::Generic]) -> Scope {
             .map(|generic| generic.name.0.clone())
             .collect(),
         unsafe_allowed: false,
+        memory: Rc::new(RefCell::new(memory::MemoryState::default())),
     }
 }
 
@@ -1701,15 +1949,6 @@ fn prim_name(prim: &Prim) -> &'static str {
         Prim::V => "v",
         Prim::Any => "*",
     }
-}
-
-fn known_effects() -> HashSet<&'static str> {
-    [
-        "h", "d", "g", "z", "fr", "fw", "ir", "iw", "nr", "nw", "dr", "dw", "tm", "rn", "th", "at",
-        "ff", "bk", "sy",
-    ]
-    .into_iter()
-    .collect()
 }
 
 fn display_type(ty: &HirType) -> String {

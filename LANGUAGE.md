@@ -78,7 +78,26 @@ Attributes are one-character uppercase markers before items. Attribute clusters 
 | `L` | packed layout |
 | `S` | structure-of-arrays layout |
 
-Unknown attrs are errors. Attrs are contracts, not comments; later compiler phases must either enforce them or reject the program.
+Unknown attrs are errors. Attrs are contracts, not comments; compiler phases must either enforce them or reject the program.
+
+Current v1-alpha placement:
+
+- Function attrs: `K V P C U H D G Z R I N O E`
+- Extern attrs: `C E`
+- Type attrs: `C E L S`
+- Enum attrs: `C E`
+- Trait/impl attrs: `E`
+- Const/macro attrs: `E`
+- `I` and `N` conflict.
+
+Current v1-alpha contracts:
+
+- `H`, `D`, `G`, `Z`, and `R` reject heap, dynamic dispatch, GC, panic, and runtime/system effects respectively.
+- `K`, `V`, and `P` reject effect families that break kernel, vector, or parallel lowering assumptions.
+- `C` rejects generic functions and non-ABI-safe field, parameter, or return types.
+- `D` rejects dynamic trait objects in function signatures.
+- `Z` rejects runtime contract statements `?` and `~`.
+- `P` rejects mutation and mutable borrows.
 
 ## Effects
 
@@ -106,7 +125,7 @@ Effects appear after `!` in function signatures.
 | `bk` | blocking operation |
 | `sy` | syscall |
 
-Effects are part of a function type. A caller must declare every effect it may trigger unless a later effect lattice explicitly proves subsumption.
+Effects are part of a function type. A caller must declare every effect it may trigger. The current lattice keeps exact effects by default and lets `sy` cover the system-boundary family `fr fw ir iw nr nw dr dw tm rn th ff bk sy`, reducing tokens when a function crosses broad OS/runtime boundaries.
 
 ## Primitive Types
 
@@ -324,13 +343,17 @@ Rules:
 
 Default values are owned. `&T` creates shared borrows. `&!T` creates exclusive mutable borrows. `^T` creates raw pointers and requires unsafe permission.
 
-Planned enforcement:
+Current v1-alpha enforcement:
 
-- A moved non-copy value cannot be reused.
-- Shared borrows allow reads.
-- Mutable borrows allow reads/writes and exclude other active borrows.
-- Raw pointer dereference requires `U`.
-- Escaping references must not outlive their source.
+- Primitive values, refs, raw pointers, slices, function values, and recursively copyable tuples/options/results/arrays are copy.
+- Structs, enums, dynamic trait objects, generics, `*`, and unknown values are non-copy until proven otherwise.
+- A moved non-copy local cannot be reused.
+- Shared borrows may alias other shared borrows.
+- Mutable borrows exclude other active borrows.
+- Mutation while borrowed is rejected.
+- References to local values cannot escape a function.
+- `P` rejects mutation and mutable borrows as a conservative data-race rule.
+- Raw pointer creation requires `U`.
 - Stack placement is preferred.
 - Heap allocation requires effect `h` and is forbidden under attr `H`.
 

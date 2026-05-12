@@ -351,12 +351,7 @@ fn is_id_continue(ch: char) -> bool {
 }
 
 fn is_attr_cluster(text: &str) -> bool {
-    const ATTRS: &str = "KVPCUHDGZRINOELS";
-    !text.is_empty()
-        && text.len() <= 2
-        && text
-            .chars()
-            .all(|ch| ch.is_ascii_uppercase() && ATTRS.contains(ch))
+    !text.is_empty() && text.len() <= 2 && text.chars().all(|ch| ch.is_ascii_uppercase())
 }
 
 fn is_top_item_start(ch: char) -> bool {
