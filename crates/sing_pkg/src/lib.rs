@@ -26,6 +26,12 @@ pub struct LockedSource {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PackageSource {
+    pub path: String,
+    pub src: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageLock {
     pub name: String,
     pub version: String,
@@ -105,6 +111,46 @@ pub fn parse_manifest(src: &str) -> Result<Manifest, PackageError> {
 }
 
 pub fn load_package(root: &Path) -> Result<PackageReport, PackageError> {
+    let manifest = load_manifest(root)?;
+    let sources = load_package_sources_with_manifest(root, &manifest)?;
+
+    let mut locked_sources = sources
+        .iter()
+        .map(|source| LockedSource {
+            path: source.path.clone(),
+            hash: stable_hash(&source.src),
+            cost: token_cost(&source.src),
+        })
+        .collect::<Vec<_>>();
+    locked_sources.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let source_texts = sources
+        .into_iter()
+        .map(|source| source.src)
+        .collect::<Vec<_>>();
+    let package_hash = package_hash(&manifest, &locked_sources);
+    let runtime = runtime_contract(&source_texts);
+    let lock = PackageLock {
+        name: manifest.name.clone(),
+        version: manifest.version.clone(),
+        package_hash,
+        sources: locked_sources,
+    };
+
+    Ok(PackageReport {
+        contract: contract_ref(SchemaKind::Package),
+        manifest,
+        lock,
+        runtime,
+    })
+}
+
+pub fn load_package_sources(root: &Path) -> Result<Vec<PackageSource>, PackageError> {
+    let manifest = load_manifest(root)?;
+    load_package_sources_with_manifest(root, &manifest)
+}
+
+fn load_manifest(root: &Path) -> Result<Manifest, PackageError> {
     let manifest_path = root.join("Sing.toml");
     let manifest = if manifest_path.exists() {
         parse_manifest(&fs::read_to_string(&manifest_path)?)?
@@ -120,7 +166,13 @@ pub fn load_package(root: &Path) -> Result<PackageReport, PackageError> {
             sources: Vec::new(),
         }
     };
+    Ok(manifest)
+}
 
+fn load_package_sources_with_manifest(
+    root: &Path,
+    manifest: &Manifest,
+) -> Result<Vec<PackageSource>, PackageError> {
     let mut source_paths = if manifest.sources.is_empty() {
         discover_sources(root)?
     } else {
@@ -139,35 +191,14 @@ pub fn load_package(root: &Path) -> Result<PackageReport, PackageError> {
     source_paths.sort();
     source_paths.dedup();
 
-    let mut locked_sources = Vec::new();
-    let mut source_texts = Vec::new();
+    let mut sources = Vec::new();
     for path in source_paths {
         let src = fs::read_to_string(&path)?;
         let rel = rel_path(root, &path);
-        locked_sources.push(LockedSource {
-            path: rel,
-            hash: stable_hash(&src),
-            cost: token_cost(&src),
-        });
-        source_texts.push(src);
+        sources.push(PackageSource { path: rel, src });
     }
-    locked_sources.sort_by(|a, b| a.path.cmp(&b.path));
-
-    let package_hash = package_hash(&manifest, &locked_sources);
-    let runtime = runtime_contract(&source_texts);
-    let lock = PackageLock {
-        name: manifest.name.clone(),
-        version: manifest.version.clone(),
-        package_hash,
-        sources: locked_sources,
-    };
-
-    Ok(PackageReport {
-        contract: contract_ref(SchemaKind::Package),
-        manifest,
-        lock,
-        runtime,
-    })
+    sources.sort_by(|a, b| a.path.cmp(&b.path));
+    Ok(sources)
 }
 
 fn runtime_contract(sources: &[String]) -> RuntimeContract {

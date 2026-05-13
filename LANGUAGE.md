@@ -497,13 +497,15 @@ Short aliases may exist when they reduce total source plus repair token cost.
 
 `Sing.lock` stores the compact lock JSON. This keeps dependency/build state machine-readable and avoids forcing AI tools to rediscover package contents.
 
+`sing check ROOT` accepts a package root. It loads package sources through `Sing.toml`, checks all modules together, resolves imports across files, reports import cycles, and emits one compact package check JSON object with modules, stable symbols, diagnostics, and per-file HIR payloads.
+
 ## Tooling Contract
 
 Commands:
 
 - `sing ast file.sg`: pretty JSON AST
 - `sing contract`: compact JSON language/schema contract
-- `sing check file.sg`: compact JSON diagnostics and HIR
+- `sing check file.sg|ROOT`: compact JSON diagnostics and HIR for one file or a package root
 - `sing tokens file.sg`: compact JSON token-cost metrics
 - `sing fmt file.sg`: canonical formatter
 - `sing min file.sg`: canonical minimizer

@@ -96,11 +96,20 @@ pub fn check_source(src: &str) -> CheckedProgram {
 }
 
 pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPackage {
+    check_package_sources(
+        sources
+            .into_iter()
+            .map(|(name, src)| (name.to_string(), src.to_string()))
+            .collect(),
+    )
+}
+
+pub fn check_package_sources(sources: Vec<(String, String)>) -> CheckedPackage {
     let parsed = sources
         .into_iter()
         .map(|(name, src)| {
-            let spans = SpanIndex::new(src);
-            let file = parse_file(src).map_err(|errors| {
+            let spans = SpanIndex::new(&src);
+            let file = parse_file(&src).map_err(|errors| {
                 errors
                     .into_iter()
                     .map(|error| {
@@ -113,17 +122,17 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
                     })
                     .collect::<Vec<_>>()
             });
-            (name.to_string(), src.to_string(), spans, file)
+            (name, spans, file)
         })
         .collect::<Vec<_>>();
 
     let mut diagnostics = Vec::new();
     let mut modules = Vec::new();
     let mut imports_by_module: HashMap<String, Vec<String>> = HashMap::new();
-    let mut fn_exports: HashMap<String, HashMap<String, FnInfo>> = HashMap::new();
+    let mut exports_by_module: HashMap<String, ImportedSymbols> = HashMap::new();
     let mut symbols = Vec::new();
 
-    for (filename, _, _, file_result) in &parsed {
+    for (filename, _, file_result) in &parsed {
         let Ok(file) = file_result else {
             continue;
         };
@@ -131,6 +140,7 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
             module_name(file).unwrap_or_else(|| filename.trim_end_matches(".sg").to_string());
         modules.push(module.clone());
         symbols.push(raw_symbol(&module, Namespace::Module, &module));
+        exports_by_module.entry(module.clone()).or_default();
 
         for item in &file.items {
             match &item.kind {
@@ -142,9 +152,20 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
                 }
                 ItemKind::Type(decl) => {
                     symbols.push(raw_symbol(&module, Namespace::Type, &decl.name.0));
+                    exports_by_module
+                        .entry(module.clone())
+                        .or_default()
+                        .types
+                        .insert(decl.name.0.clone(), type_def_from_decl(decl));
                 }
                 ItemKind::Enum(decl) => {
                     symbols.push(raw_symbol(&module, Namespace::Type, &decl.name.0));
+                    let enum_ty = HirType::Enum(decl.name.0.clone());
+                    exports_by_module
+                        .entry(module.clone())
+                        .or_default()
+                        .types
+                        .insert(decl.name.0.clone(), TypeDef::Enum);
                     for variant in &decl.variants {
                         let name = match variant {
                             Variant::Unit(name)
@@ -152,37 +173,62 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
                             | Variant::Struct(name, _) => &name.0,
                         };
                         symbols.push(raw_symbol(&module, Namespace::Variant, name));
+                        exports_by_module
+                            .entry(module.clone())
+                            .or_default()
+                            .enum_variants
+                            .insert(name.clone(), enum_ty.clone());
                     }
                 }
                 ItemKind::Trait(decl) => {
                     symbols.push(raw_symbol(&module, Namespace::Trait, &decl.name.0));
+                    exports_by_module
+                        .entry(module.clone())
+                        .or_default()
+                        .types
+                        .insert(decl.name.0.clone(), TypeDef::Trait);
                 }
                 ItemKind::Fn(decl) => {
                     let name = path_name(&decl.sig.name);
                     symbols.push(raw_symbol(&module, Namespace::Value, &name));
-                    fn_exports
+                    exports_by_module
                         .entry(module.clone())
                         .or_default()
+                        .fns
                         .insert(name, fn_info_from_sig(&decl.sig));
                 }
                 ItemKind::Extern(sig) => {
                     let name = path_name(&sig.name);
                     symbols.push(raw_symbol(&module, Namespace::Value, &name));
-                    fn_exports
+                    exports_by_module
                         .entry(module.clone())
                         .or_default()
+                        .fns
                         .insert(name, fn_info_from_sig(sig));
                 }
-                ItemKind::Const { name, .. } => {
+                ItemKind::Const { name, ty, expr } => {
                     symbols.push(raw_symbol(&module, Namespace::Value, &name.0));
+                    exports_by_module
+                        .entry(module.clone())
+                        .or_default()
+                        .consts
+                        .insert(name.0.clone(), const_type_from_ast(ty.as_ref(), expr));
+                }
+                ItemKind::Alias { name, ty } => {
+                    symbols.push(raw_symbol(&module, Namespace::Type, &name.0));
+                    exports_by_module
+                        .entry(module.clone())
+                        .or_default()
+                        .types
+                        .insert(
+                            name.0.clone(),
+                            TypeDef::Alias(hir_type_from_ast_shallow(ty, &HashSet::new())),
+                        );
                 }
                 ItemKind::Macro(call) => {
                     symbols.push(raw_symbol(&module, Namespace::Macro, &call.name.0));
                 }
-                ItemKind::Module(_)
-                | ItemKind::Alias { .. }
-                | ItemKind::Impl(_)
-                | ItemKind::Test(_) => {}
+                ItemKind::Module(_) | ItemKind::Impl(_) | ItemKind::Test(_) => {}
             }
         }
     }
@@ -201,17 +247,17 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
     }
 
     let mut files = Vec::new();
-    for (_, _, spans, file_result) in parsed {
+    for (_, spans, file_result) in parsed {
         match file_result {
             Ok(file) => {
                 let module = module_name(&file).unwrap_or_default();
-                let mut imported_fns = HashMap::new();
+                let mut imported = ImportedSymbols::default();
                 for import in imports_by_module.get(&module).into_iter().flatten() {
-                    if let Some(exports) = fn_exports.get(import) {
-                        imported_fns.extend(exports.clone());
+                    if let Some(exports) = exports_by_module.get(import) {
+                        imported.extend_from_module(import, exports);
                     }
                 }
-                let mut checker = Checker::new_with_imports(file, spans, imported_fns);
+                let mut checker = Checker::new_with_imports(file, spans, imported);
                 let hir = checker.check();
                 let ok = checker.diagnostics.is_empty();
                 files.push(CheckedProgram {
@@ -273,6 +319,23 @@ enum TypeDef {
     Trait,
 }
 
+#[derive(Debug, Clone, Default)]
+struct ImportedSymbols {
+    types: HashMap<String, TypeDef>,
+    fns: HashMap<String, FnInfo>,
+    consts: HashMap<String, HirType>,
+    enum_variants: HashMap<String, HirType>,
+}
+
+impl ImportedSymbols {
+    fn extend_from_module(&mut self, module: &str, exports: &ImportedSymbols) {
+        extend_imported_map(&mut self.types, module, &exports.types);
+        extend_imported_map(&mut self.fns, module, &exports.fns);
+        extend_imported_map(&mut self.consts, module, &exports.consts);
+        extend_imported_map(&mut self.enum_variants, module, &exports.enum_variants);
+    }
+}
+
 #[derive(Debug, Clone)]
 struct FnInfo {
     params: Vec<HirType>,
@@ -318,14 +381,10 @@ struct Checker {
 
 impl Checker {
     fn new(file: File, spans: SpanIndex) -> Self {
-        Self::new_with_imports(file, spans, HashMap::new())
+        Self::new_with_imports(file, spans, ImportedSymbols::default())
     }
 
-    fn new_with_imports(
-        file: File,
-        spans: SpanIndex,
-        imported_fns: HashMap<String, FnInfo>,
-    ) -> Self {
+    fn new_with_imports(file: File, spans: SpanIndex, imported: ImportedSymbols) -> Self {
         let mut checker = Self {
             file,
             spans,
@@ -338,7 +397,10 @@ impl Checker {
             enum_variants: HashMap::new(),
         };
         checker.seed_std();
-        checker.fns.extend(imported_fns);
+        checker.types.extend(imported.types);
+        checker.fns.extend(imported.fns);
+        checker.consts.extend(imported.consts);
+        checker.enum_variants.extend(imported.enum_variants);
         checker
     }
 
@@ -2215,6 +2277,50 @@ fn raw_symbol(module: &str, namespace: Namespace, name: &str) -> Symbol {
         module: module.to_string(),
         name: name.to_string(),
         qualified,
+    }
+}
+
+fn extend_imported_map<T: Clone>(
+    target: &mut HashMap<String, T>,
+    module: &str,
+    exports: &HashMap<String, T>,
+) {
+    for (name, value) in exports {
+        target.insert(name.clone(), value.clone());
+        target.insert(format!("{module}.{name}"), value.clone());
+    }
+}
+
+fn type_def_from_decl(decl: &sing_ast::TypeDecl) -> TypeDef {
+    let generics = decl
+        .generics
+        .iter()
+        .map(|generic| generic.name.0.clone())
+        .collect::<HashSet<_>>();
+    let mut fields = HashMap::new();
+    for field in &decl.fields {
+        let ty = hir_type_from_ast_shallow(&field.ty, &generics);
+        for name in &field.names {
+            fields.insert(name.0.clone(), ty.clone());
+        }
+    }
+    TypeDef::Struct(fields)
+}
+
+fn const_type_from_ast(ty: Option<&AstType>, expr: &Expr) -> HirType {
+    ty.map(|ty| hir_type_from_ast_shallow(ty, &HashSet::new()))
+        .unwrap_or_else(|| const_expr_type_shallow(expr))
+}
+
+fn const_expr_type_shallow(expr: &Expr) -> HirType {
+    match expr {
+        Expr::Int(lit) => int_literal_type(lit, None),
+        Expr::Float(lit) => float_literal_type(lit, None),
+        Expr::String(_) => HirType::Prim("s".to_string()),
+        Expr::Char(_) => HirType::Prim("c".to_string()),
+        Expr::Bool(_) => HirType::b(),
+        Expr::None => HirType::Option(Box::new(HirType::Unknown)),
+        _ => HirType::Unknown,
     }
 }
 

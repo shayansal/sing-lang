@@ -24,6 +24,33 @@ fn package_imports_make_module_functions_visible() {
 }
 
 #[test]
+fn package_imports_make_types_consts_and_variants_visible() {
+    let checked = check_package([
+        ("a.sg", "m A;t V{x:i4};e E{Ok};k num:i4=3"),
+        ("b.sg", "m B;u A;f value()>i4{v=V{x:num};Ok;v.x}"),
+    ]);
+
+    assert!(
+        checked.diagnostics.is_empty(),
+        "diagnostics: {:#?}",
+        checked.diagnostics
+    );
+    assert!(checked.ok);
+    assert!(checked
+        .symbols
+        .iter()
+        .any(|symbol| symbol.qualified == "A.V" && symbol.namespace == Namespace::Type));
+    assert!(checked
+        .symbols
+        .iter()
+        .any(|symbol| symbol.qualified == "A.num" && symbol.namespace == Namespace::Value));
+    assert!(checked
+        .symbols
+        .iter()
+        .any(|symbol| symbol.qualified == "A.Ok" && symbol.namespace == Namespace::Variant));
+}
+
+#[test]
 fn symbol_ids_are_stable_across_runs() {
     let sources = [
         ("a.sg", "m A;t V{x:f4};f foo()>i4:1"),

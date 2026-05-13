@@ -68,7 +68,7 @@ From strongest to weakest:
 ## Semantic Model Slice
 
 - Top-level declarations define module, import, type, enum, trait, function, extern, const, macro, and test symbols.
-- Imports currently create external module placeholders. Built-in imported names are modeled for `out`, `sqrt`, and `sum`.
+- Package checks resolve imports across files for functions, externs, structs, aliases, traits, constants, and enum variants. Built-in imported names are modeled for `out`, `sqrt`, and `sum`.
 - All top-level declarations are visible inside the file. There is no visibility token in v1-alpha.
 - Struct object literals must use known fields and include all declared fields.
 - Enum unit variants resolve as values of their enum type.
@@ -90,6 +90,7 @@ From strongest to weakest:
 - `sing build` selects the `cranelift-alpha` backend contract, emits backend IR, primitive layout metadata, an oracle-linked object/binary, debug metadata, and a direct Cranelift object when `main` fits the integer MIR subset: local binds, integer arithmetic, comparisons, return, and ternary branches.
 - `sing fmt`, `sing min`, `sing test`, `sing doc`, `sing repl`, `sing explain`, `sing pkg`, and `sing lsp` provide the alpha tooling surface with compact machine-readable output where useful.
 - `sing contract` reports the shared `contract.v1` language/schema contract used by diagnostics, check, build, package, macro, HIR, MIR, and token reports.
+- `sing check ROOT` loads `Sing.toml` package sources and emits package-wide compact JSON diagnostics, modules, stable symbols, and per-file checked HIR.
 - `Sing.toml`/`Sing.lock` define the alpha package manifest and reproducible lock report. Package runtime contracts infer `R`, `H`, `Z`, `D`, `G`, and `C` promises from source attrs.
 - `stdlib/` contains token-minimal parseable declarations for `core`, `io`, `math`, `mem`, `fs`, `time`, `test`, and `c`.
 - `sing expand` deterministically expands built-in `p` macros for `store`, `idx`, `crud`, `rest`, and `rbac`, reporting token-cost expansion ratios.

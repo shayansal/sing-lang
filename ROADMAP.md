@@ -14,6 +14,7 @@
 ## v1-alpha.2
 
 - Semantic checker for local name/type/effect validation.
+- Package-wide `sing check ROOT` with module imports for values, types, constants, and enum variants.
 - Stable JSON diagnostics with short error codes.
 - Typed HIR summaries for compiler/tooling consumers.
 - `sing check file.sg` compact JSON output.

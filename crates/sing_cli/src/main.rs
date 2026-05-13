@@ -112,6 +112,35 @@ fn print_ast(file: PathBuf) -> ExitCode {
 }
 
 fn check(file: PathBuf) -> ExitCode {
+    if file.is_dir() {
+        let sources = match sing_pkg::load_package_sources(&file) {
+            Ok(sources) => sources,
+            Err(error) => {
+                eprintln!("failed to load package {}: {error}", file.display());
+                return ExitCode::FAILURE;
+            }
+        };
+        let checked = sing_sem::check_package_sources(
+            sources
+                .into_iter()
+                .map(|source| (source.path, source.src))
+                .collect(),
+        );
+        match serde_json::to_string(&checked) {
+            Ok(json) => println!("{json}"),
+            Err(error) => {
+                eprintln!("failed to serialize package check output: {error}");
+                return ExitCode::FAILURE;
+            }
+        }
+
+        return if checked.ok {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::FAILURE
+        };
+    }
+
     let src = match fs::read_to_string(&file) {
         Ok(src) => src,
         Err(error) => {

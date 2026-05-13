@@ -306,3 +306,18 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Embed contract refs in check, explain, build, package, and macro expansion reports.
 - [x] Document stable schema shapes and token-economy feature gate.
 - [x] Add CLI contract tests that lock version/schema drift.
+
+### Task 14: Package-Wide Semantic Check Slice
+
+**Files:**
+- Modify: `crates/sing_sem/src/lib.rs`
+- Modify: `crates/sing_pkg/src/lib.rs`
+- Modify: `crates/sing_cli/src/main.rs`
+- Test: `crates/sing_sem/tests/package.rs`
+- Test: `crates/sing_cli/tests/check_package.rs`
+
+- [x] Add package source loading for `Sing.toml` roots.
+- [x] Add dynamic package check entrypoint for CLI/package sources.
+- [x] Import functions, externs, structs, aliases, traits, constants, and enum variants across used modules.
+- [x] Make `sing check ROOT` emit package-wide compact JSON with stable modules/symbols.
+- [x] Preserve single-file `sing check file.sg` behavior.
