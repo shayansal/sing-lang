@@ -91,6 +91,7 @@ From strongest to weakest:
 - `sing fmt`, `sing min`, `sing test`, `sing doc`, `sing repl`, `sing explain`, `sing pkg`, and `sing lsp` provide the alpha tooling surface with compact machine-readable output where useful.
 - `Sing.toml`/`Sing.lock` define the alpha package manifest and reproducible lock report. Package runtime contracts infer `R`, `H`, `Z`, `D`, `G`, and `C` promises from source attrs.
 - `stdlib/` contains token-minimal parseable declarations for `core`, `io`, `math`, `mem`, `fs`, `time`, `test`, and `c`.
+- `sing expand` deterministically expands built-in `p` macros for `store`, `idx`, `crud`, `rest`, and `rbac`, reporting token-cost expansion ratios.
 - Diagnostics use stable codes:
   - `E0001` parse error
   - `E0101` duplicate symbol

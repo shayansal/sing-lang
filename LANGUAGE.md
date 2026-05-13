@@ -388,7 +388,17 @@ Undefined behavior is only possible through explicitly unsafe operations. Safe S
 - diagnostic-rich
 - visible in JSON tooling output
 
-Full macro expansion is reserved for a later milestone.
+`sing expand file.sg` performs alpha expansion for the token-economy built-ins:
+
+- `p store T` -> storage externs for `T_get` and `T_put`
+- `p idx T.f` -> indexed lookup extern `T_by_f`
+- `p crud T` -> create/read/update/delete externs
+- `p rest T` -> route registration extern
+- `p rbac{...}` -> authorization externs
+
+The expansion report includes original/expanded token costs and an expansion ratio. This is deliberate: short source should be auditable as rich generated IR/source without making AI tools guess what the shorthand means.
+
+User-defined macro bodies, hygiene beyond built-in deterministic names, and compile-time evaluation are reserved for later milestones.
 
 ## HIR And MIR
 
@@ -485,6 +495,7 @@ Commands:
 - `sing explain E0401`: diagnostic explanation
 - `sing pkg ROOT`: manifest, lock, and runtime contract
 - `sing lsp file.sg`: compact LSP-ready document facts
+- `sing expand file.sg`: deterministic macro expansion report
 
 Every command must support stable JSON output. Compact JSON is the default for machine-facing commands.
 

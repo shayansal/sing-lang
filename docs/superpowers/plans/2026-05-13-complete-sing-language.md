@@ -252,3 +252,16 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Add `fmt`, `min`, `test`, `doc`, `repl`, `explain`, `build`.
 - [x] Add manifest, lockfile, workspaces, dependency resolution, and reproducible builds.
 - [x] Add CI, clippy, release binaries, install script, conformance suite, performance suite, and token benchmark suite.
+
+### Task 10: Macro Expansion Alpha
+
+**Files:**
+- Create: `crates/sing_macro/`
+- Modify: `crates/sing_cli/src/main.rs`
+- Modify: `LANGUAGE.md`
+- Modify: `SPEC.md`
+
+- [x] Add deterministic built-in expansion for `store`, `idx`, `crud`, `rest`, and `rbac`.
+- [x] Emit compact JSON expansion reports with original/expanded token costs.
+- [x] Add `sing expand file.sg`.
+- [x] Keep expanded source parseable and AST-stable.

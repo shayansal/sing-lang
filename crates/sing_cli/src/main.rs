@@ -55,6 +55,8 @@ enum Command {
     },
     /// Print LSP-ready document facts as compact JSON.
     Lsp { file: PathBuf },
+    /// Expand deterministic v1-alpha macros and print compact JSON.
+    Expand { file: PathBuf },
 }
 
 fn main() -> ExitCode {
@@ -73,6 +75,7 @@ fn main() -> ExitCode {
         Command::Explain { code } => explain(code),
         Command::Pkg { root } => pkg(root),
         Command::Lsp { file } => lsp(file),
+        Command::Expand { file } => expand(file),
     }
 }
 
@@ -432,6 +435,29 @@ fn lsp(file: PathBuf) -> ExitCode {
         }
         Err(error) => {
             eprintln!("failed to serialize LSP facts: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn expand(file: PathBuf) -> ExitCode {
+    let src = match read_source(&file) {
+        Ok(src) => src,
+        Err(code) => return code,
+    };
+    match sing_macro::expand_source(&src) {
+        Ok(expanded) => match serde_json::to_string(&expanded) {
+            Ok(json) => {
+                println!("{json}");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("failed to serialize expansion report: {error}");
+                ExitCode::FAILURE
+            }
+        },
+        Err(error) => {
+            eprintln!("expand failed: {error}");
             ExitCode::FAILURE
         }
     }

@@ -10,6 +10,7 @@ members = [
     "crates/sing_interp",
     "crates/sing_codegen",
     "crates/sing_fmt",
+    "crates/sing_macro",
     "crates/sing_pkg",
     "crates/sing_lsp",
     "crates/sing_cli",

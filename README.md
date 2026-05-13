@@ -4,7 +4,7 @@ Sing is a minimum-token, native-speed, AI-first systems programming language. Th
 
 The north-star goal is to be the least AI-token-consuming programming language in the world. That means compact syntax is not cosmetic: every compiler surface should preserve tiny source, deterministic lowering, compact machine-readable diagnostics, and rich IR that lets AI tools reason with fewer prompt tokens.
 
-This repository currently contains the v1-alpha parser milestone plus semantic, IR, interpreter, native-alpha build, and tooling/package slices: `.sg` source is lexed, parsed into the stable AST, checked for names/types/effects/memory rules, lowered to typed HIR with metadata, lowered further into MIR control-flow/dataflow summaries, executable through the interpreter oracle, buildable into a host native alpha launcher, format/minified for token cost, documented as compact JSON, and packaged with a reproducible lock report. Full macro expansion, LLVM, async, and GPU support remain intentionally out of scope.
+This repository currently contains the v1-alpha parser milestone plus semantic, IR, interpreter, native-alpha build, tooling/package, and deterministic macro-expansion slices: `.sg` source is lexed, parsed into the stable AST, checked for names/types/effects/memory rules, lowered to typed HIR with metadata, lowered further into MIR control-flow/dataflow summaries, executable through the interpreter oracle, buildable into a host native alpha launcher, format/minified for token cost, documented as compact JSON, expanded from compact `p` macros, and packaged with a reproducible lock report. LLVM, async, and GPU support remain intentionally out of scope.
 
 ```sing
 m H;u io;f main()>v !iw:out("hi")
@@ -30,6 +30,7 @@ cargo run -p sing_cli -- min examples/dot.sg
 cargo run -p sing_cli -- test tests/conformance/tooling.sg
 cargo run -p sing_cli -- doc examples/hello.sg
 cargo run -p sing_cli -- explain E0401
+cargo run -p sing_cli -- expand examples/web.sg
 cargo run -p sing_cli -- pkg .
 ```
 
@@ -40,5 +41,6 @@ sing ast examples/hello.sg
 sing run examples/hello.sg
 sing build examples/hello.sg
 sing min examples/dot.sg
+sing expand examples/web.sg
 sing pkg .
 ```

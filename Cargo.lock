@@ -498,6 +498,7 @@ dependencies = [
  "sing_fmt",
  "sing_interp",
  "sing_lsp",
+ "sing_macro",
  "sing_parse",
  "sing_pkg",
  "sing_sem",
@@ -559,6 +560,18 @@ dependencies = [
  "sing_parse",
  "sing_sem",
  "sing_token",
+]
+
+[[package]]
+name = "sing_macro"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "sing_ast",
+ "sing_fmt",
+ "sing_parse",
+ "sing_token",
+ "thiserror",
 ]
 
 [[package]]

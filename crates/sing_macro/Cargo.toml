@@ -1,0 +1,14 @@
+[package]
+name = "sing_macro"
+version = "0.1.0-alpha.1"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+sing_ast = { path = "../sing_ast" }
+sing_fmt = { path = "../sing_fmt" }
+sing_parse = { path = "../sing_parse" }
+sing_token = { path = "../sing_token" }
+thiserror.workspace = true

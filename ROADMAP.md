@@ -21,8 +21,8 @@
 ## Later Milestones
 
 - Direct Cranelift machine-code emission.
-- Macro expansion.
 - Package dependency fetching beyond local manifests.
+- Hygienic user-defined macros beyond deterministic v1 built-ins.
 - Full LSP server transport beyond compact document facts.
 - Formatter write/check modes.
 - Release artifact signing.
