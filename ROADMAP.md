@@ -20,7 +20,7 @@
 
 ## Later Milestones
 
-- Expand direct Cranelift emission beyond constant-return `main`.
+- Expand direct Cranelift emission beyond the current integer `main` subset into calls, loops, structs, enums, and memory operations.
 - Package dependency fetching beyond local manifests.
 - Hygienic user-defined macros beyond deterministic v1 built-ins.
 - Full LSP server transport beyond compact document facts.

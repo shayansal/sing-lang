@@ -277,3 +277,18 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Emit a real Cranelift object for constant-integer `main`.
 - [x] Report `codegen_strategy`, `direct_native`, `direct_object_path`, and `fallback_reason`.
 - [x] Preserve oracle-linked launcher fallback for richer programs.
+
+### Task 12: Direct Integer MIR Codegen Alpha
+
+**Files:**
+- Modify: `crates/sing_codegen/src/lib.rs`
+- Modify: `crates/sing_codegen/tests/build.rs`
+- Modify: `LANGUAGE.md`
+- Modify: `SPEC.md`
+- Modify: `ROADMAP.md`
+
+- [x] Audit remaining roadmap and choose direct native breadth as the next highest-leverage gap.
+- [x] Add failing tests for local integer binds and ternary branch direct object emission.
+- [x] Lower supported integer MIR rvalues to Cranelift instructions.
+- [x] Lower supported MIR branch terminators to Cranelift `brif`.
+- [x] Keep unsupported MIR as oracle-linked fallback with explicit compact reasons.

@@ -1,19 +1,20 @@
 use std::{
+    collections::{BTreeMap, BTreeSet},
     fs, io,
     path::{Path, PathBuf},
     process::Command,
 };
 
 use cranelift_codegen::{
-    ir::{types, AbiParam, InstBuilder},
+    ir::{condcodes::IntCC, types, AbiParam, InstBuilder, Value},
     settings::{self, Configurable},
 };
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
+use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_module::{default_libcall_names, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use serde::{Deserialize, Serialize};
 use sing_interp::run_source;
-use sing_mir::{lower_source, MirProgram, MirTerminator, Rvalue};
+use sing_mir::{lower_source, MirFunction, MirOp, MirProgram, MirTerminator, Rvalue};
 use thiserror::Error;
 
 const BACKEND: &str = "cranelift-alpha";
@@ -83,7 +84,11 @@ pub fn build_source_to_dir(
         .then(|| out_dir.join("main.singdbg.json"));
     let source_path = out_dir.join("main.singlink.rs");
     let ir_path = out_dir.join("main.clif.txt");
-    let direct = emit_direct_object(&mir, &direct_object_candidate, &target)?;
+    let direct_attempt = emit_direct_object(&mir, &direct_object_candidate, &target)?;
+    let (direct, fallback_reason) = match direct_attempt {
+        DirectAttempt::Emitted(artifact) => (Some(artifact), None),
+        DirectAttempt::Fallback(reason) => (None, Some(reason)),
+    };
     let backend_ir = backend_ir(&mir, &target, direct.as_ref());
     let codegen_strategy = direct
         .as_ref()
@@ -92,20 +97,6 @@ pub fn build_source_to_dir(
         .to_string();
     let direct_native = direct.is_some();
     let direct_object_path = direct.as_ref().map(|artifact| artifact.path.clone());
-    let fallback_reason = direct
-        .as_ref()
-        .and_then(|artifact| artifact.fallback_reason.clone())
-        .or_else(|| {
-            if direct_native {
-                None
-            } else {
-                Some(
-                    direct_constant_main(&mir)
-                        .err()
-                        .unwrap_or_else(|| "unsupported direct Cranelift subset".to_string()),
-                )
-            }
-        });
 
     fs::write(&ir_path, &backend_ir)?;
     let run = run_source(src).map_err(|error| BuildError::Oracle(error.to_string()))?;
@@ -213,8 +204,8 @@ fn backend_ir(mir: &MirProgram, target: &str, direct: Option<&DirectArtifact>) -
     ir.push_str(&format!("abi {ABI}\n"));
     if let Some(direct) = direct {
         ir.push_str(&format!(
-            "direct cranelift-object-alpha main={}\n",
-            direct.main_return
+            "direct cranelift-object-alpha {}\n",
+            direct.summary
         ));
     } else {
         ir.push_str("direct fallback oracle-linked-launcher\n");
@@ -233,29 +224,36 @@ fn backend_ir(mir: &MirProgram, target: &str, direct: Option<&DirectArtifact>) -
 }
 
 #[derive(Debug, Clone)]
+enum DirectAttempt {
+    Emitted(DirectArtifact),
+    Fallback(String),
+}
+
+#[derive(Debug, Clone)]
 struct DirectArtifact {
     path: PathBuf,
-    main_return: i64,
-    fallback_reason: Option<String>,
+    summary: String,
+}
+
+#[derive(Debug, Clone)]
+struct DirectMain<'a> {
+    func: &'a MirFunction,
+    summary: String,
 }
 
 fn emit_direct_object(
     mir: &MirProgram,
     path: &Path,
     target: &str,
-) -> Result<Option<DirectArtifact>, BuildError> {
-    let main_return = match direct_constant_main(mir) {
-        Ok(value) => value,
-        Err(_) => return Ok(None),
+) -> Result<DirectAttempt, BuildError> {
+    let direct = match direct_main(mir) {
+        Ok(direct) => direct,
+        Err(reason) => return Ok(DirectAttempt::Fallback(reason)),
     };
     if target != host_target() {
-        return Ok(Some(DirectArtifact {
-            path: path.to_path_buf(),
-            main_return,
-            fallback_reason: Some(
-                "direct Cranelift currently supports host target only".to_string(),
-            ),
-        }));
+        return Ok(DirectAttempt::Fallback(
+            "unsupported direct Cranelift subset: host target only".to_string(),
+        ));
     }
 
     let mut flag_builder = settings::builder();
@@ -279,11 +277,7 @@ fn emit_direct_object(
     let mut builder_ctx = FunctionBuilderContext::new();
     {
         let mut builder = FunctionBuilder::new(&mut ctx.func, &mut builder_ctx);
-        let block = builder.create_block();
-        builder.switch_to_block(block);
-        builder.seal_block(block);
-        let value = builder.ins().iconst(types::I64, main_return);
-        builder.ins().return_(&[value]);
+        emit_direct_function(&mut builder, direct.func).map_err(BuildError::Direct)?;
         builder.finalize();
     }
 
@@ -297,30 +291,269 @@ fn emit_direct_object(
         .map_err(|error| BuildError::Direct(error.to_string()))?;
     fs::write(path, bytes)?;
 
-    Ok(Some(DirectArtifact {
+    Ok(DirectAttempt::Emitted(DirectArtifact {
         path: path.to_path_buf(),
-        main_return,
-        fallback_reason: None,
+        summary: direct.summary,
     }))
 }
 
-fn direct_constant_main(mir: &MirProgram) -> Result<i64, String> {
+fn direct_main(mir: &MirProgram) -> Result<DirectMain<'_>, String> {
     let main = mir
         .functions
         .iter()
         .find(|func| func.name == "main")
         .ok_or_else(|| "unsupported direct Cranelift subset: missing main".to_string())?;
-    if main.blocks.len() != 1 || !main.blocks[0].ops.is_empty() {
+    validate_direct_main(main)?;
+    let op_count = main
+        .blocks
+        .iter()
+        .map(|block| block.ops.len())
+        .sum::<usize>();
+    let summary = if let Some(value) = direct_constant_return(main) {
+        format!(
+            "main={value} subset=int-main-v2 blocks={} ops={op_count}",
+            main.blocks.len()
+        )
+    } else {
+        format!(
+            "subset=int-main-v2 blocks={} ops={op_count}",
+            main.blocks.len()
+        )
+    };
+    Ok(DirectMain {
+        func: main,
+        summary,
+    })
+}
+
+fn direct_constant_return(func: &MirFunction) -> Option<i64> {
+    if func.blocks.len() != 1 || !func.blocks[0].ops.is_empty() {
+        return None;
+    }
+    match &func.blocks[0].term {
+        MirTerminator::Return(Some(Rvalue::ConstInt(value))) => Some(*value),
+        _ => None,
+    }
+}
+
+fn validate_direct_main(func: &MirFunction) -> Result<(), String> {
+    if func.blocks.is_empty() || func.entry >= func.blocks.len() {
+        return Err("unsupported direct Cranelift subset: malformed main MIR".to_string());
+    }
+    if func.blocks.iter().any(|block| !block.reachable) {
         return Err(
-            "unsupported direct Cranelift subset: main must be one return block".to_string(),
+            "unsupported direct Cranelift subset: dead blocks need MIR cleanup".to_string(),
         );
     }
-    match &main.blocks[0].term {
-        MirTerminator::Return(Some(Rvalue::ConstInt(value))) => Ok(*value),
+
+    let mut assigned = BTreeSet::new();
+    for block in &func.blocks {
+        for op in &block.ops {
+            match op {
+                MirOp::Assign { target, value } => {
+                    validate_direct_rvalue(value, &assigned)?;
+                    assigned.insert(target.clone());
+                }
+                MirOp::Mutate { .. } => {
+                    return Err(
+                        "unsupported direct Cranelift subset: mutation is not native yet"
+                            .to_string(),
+                    );
+                }
+                MirOp::Eval(_) | MirOp::Require(_) | MirOp::Ensure(_) => {
+                    return Err(
+                        "unsupported direct Cranelift subset: only local binds and returns are native"
+                            .to_string(),
+                    );
+                }
+            }
+        }
+
+        match &block.term {
+            MirTerminator::Return(Some(value)) => validate_direct_rvalue(value, &assigned)?,
+            MirTerminator::Branch {
+                cond,
+                then_block,
+                else_block,
+            } => {
+                validate_direct_rvalue(cond, &assigned)?;
+                if *then_block >= func.blocks.len() || *else_block >= func.blocks.len() {
+                    return Err(
+                        "unsupported direct Cranelift subset: branch target is malformed"
+                            .to_string(),
+                    );
+                }
+            }
+            MirTerminator::Return(None) => {
+                return Err(
+                    "unsupported direct Cranelift subset: void main return is not native yet"
+                        .to_string(),
+                );
+            }
+            MirTerminator::Goto(_) | MirTerminator::Unreachable => {
+                return Err(
+                    "unsupported direct Cranelift subset: only return and ternary branch control flow is native"
+                        .to_string(),
+                );
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_direct_rvalue(value: &Rvalue, assigned: &BTreeSet<String>) -> Result<(), String> {
+    match value {
+        Rvalue::ConstInt(_) | Rvalue::ConstBool(_) => Ok(()),
+        Rvalue::Use(name) if assigned.contains(name) => Ok(()),
+        Rvalue::Use(_) => {
+            Err("unsupported direct Cranelift subset: external values are not native yet".to_string())
+        }
+        Rvalue::Unary { op, value } if matches!(op.as_str(), "Neg" | "Not") => {
+            validate_direct_rvalue(value, assigned)
+        }
+        Rvalue::Binary { op, lhs, rhs } if is_direct_binary_op(op) => {
+            validate_direct_rvalue(lhs, assigned)?;
+            validate_direct_rvalue(rhs, assigned)
+        }
         _ => Err(
-            "unsupported direct Cranelift subset: main must return a constant integer".to_string(),
+            "unsupported direct Cranelift subset: integer main only supports binds, arithmetic, comparisons, and ternary"
+                .to_string(),
         ),
     }
+}
+
+fn is_direct_binary_op(op: &str) -> bool {
+    matches!(
+        op,
+        "Add" | "Sub" | "Mul" | "Div" | "Mod" | "Lt" | "Le" | "Gt" | "Ge" | "Eq" | "Ne"
+    )
+}
+
+fn emit_direct_function(
+    builder: &mut FunctionBuilder<'_>,
+    func: &MirFunction,
+) -> Result<(), String> {
+    let blocks = (0..func.blocks.len())
+        .map(|_| builder.create_block())
+        .collect::<Vec<_>>();
+    let mut vars = BTreeMap::new();
+
+    for block in &func.blocks {
+        builder.switch_to_block(blocks[block.id]);
+        for op in &block.ops {
+            match op {
+                MirOp::Assign { target, value } => {
+                    let value = emit_direct_rvalue(builder, &mut vars, value)?;
+                    let var = direct_var(builder, &mut vars, target);
+                    builder.def_var(var, value);
+                }
+                _ => return Err("validated direct MIR contained unsupported op".to_string()),
+            }
+        }
+
+        match &block.term {
+            MirTerminator::Return(Some(value)) => {
+                let value = emit_direct_rvalue(builder, &mut vars, value)?;
+                builder.ins().return_(&[value]);
+            }
+            MirTerminator::Branch {
+                cond,
+                then_block,
+                else_block,
+            } => {
+                let cond = emit_direct_rvalue(builder, &mut vars, cond)?;
+                let truthy = builder.ins().icmp_imm(IntCC::NotEqual, cond, 0);
+                builder
+                    .ins()
+                    .brif(truthy, blocks[*then_block], &[], blocks[*else_block], &[]);
+            }
+            _ => return Err("validated direct MIR contained unsupported terminator".to_string()),
+        }
+    }
+
+    builder.seal_all_blocks();
+    Ok(())
+}
+
+fn direct_var(
+    builder: &mut FunctionBuilder<'_>,
+    vars: &mut BTreeMap<String, Variable>,
+    name: &str,
+) -> Variable {
+    if let Some(var) = vars.get(name) {
+        *var
+    } else {
+        let var = builder.declare_var(types::I64);
+        vars.insert(name.to_string(), var);
+        var
+    }
+}
+
+fn emit_direct_rvalue(
+    builder: &mut FunctionBuilder<'_>,
+    vars: &mut BTreeMap<String, Variable>,
+    value: &Rvalue,
+) -> Result<Value, String> {
+    match value {
+        Rvalue::ConstInt(value) => Ok(builder.ins().iconst(types::I64, *value)),
+        Rvalue::ConstBool(value) => Ok(builder.ins().iconst(types::I64, i64::from(*value))),
+        Rvalue::Use(name) => {
+            let var = vars
+                .get(name)
+                .ok_or_else(|| format!("direct Cranelift used undefined local {name}"))?;
+            Ok(builder.use_var(*var))
+        }
+        Rvalue::Unary { op, value } if op == "Neg" => {
+            let value = emit_direct_rvalue(builder, vars, value)?;
+            Ok(builder.ins().ineg(value))
+        }
+        Rvalue::Unary { op, value } if op == "Not" => {
+            let value = emit_direct_rvalue(builder, vars, value)?;
+            let cmp = builder.ins().icmp_imm(IntCC::Equal, value, 0);
+            Ok(bool_to_i64(builder, cmp))
+        }
+        Rvalue::Binary { op, lhs, rhs } => {
+            let lhs = emit_direct_rvalue(builder, vars, lhs)?;
+            let rhs = emit_direct_rvalue(builder, vars, rhs)?;
+            match op.as_str() {
+                "Add" => Ok(builder.ins().iadd(lhs, rhs)),
+                "Sub" => Ok(builder.ins().isub(lhs, rhs)),
+                "Mul" => Ok(builder.ins().imul(lhs, rhs)),
+                "Div" => Ok(builder.ins().sdiv(lhs, rhs)),
+                "Mod" => Ok(builder.ins().srem(lhs, rhs)),
+                "Lt" => Ok(emit_compare(builder, IntCC::SignedLessThan, lhs, rhs)),
+                "Le" => Ok(emit_compare(
+                    builder,
+                    IntCC::SignedLessThanOrEqual,
+                    lhs,
+                    rhs,
+                )),
+                "Gt" => Ok(emit_compare(builder, IntCC::SignedGreaterThan, lhs, rhs)),
+                "Ge" => Ok(emit_compare(
+                    builder,
+                    IntCC::SignedGreaterThanOrEqual,
+                    lhs,
+                    rhs,
+                )),
+                "Eq" => Ok(emit_compare(builder, IntCC::Equal, lhs, rhs)),
+                "Ne" => Ok(emit_compare(builder, IntCC::NotEqual, lhs, rhs)),
+                _ => Err(format!("unsupported direct binary op {op}")),
+            }
+        }
+        _ => Err("unsupported direct rvalue escaped validation".to_string()),
+    }
+}
+
+fn emit_compare(builder: &mut FunctionBuilder<'_>, cc: IntCC, lhs: Value, rhs: Value) -> Value {
+    let cond = builder.ins().icmp(cc, lhs, rhs);
+    bool_to_i64(builder, cond)
+}
+
+fn bool_to_i64(builder: &mut FunctionBuilder<'_>, cond: Value) -> Value {
+    let one = builder.ins().iconst(types::I64, 1);
+    let zero = builder.ins().iconst(types::I64, 0);
+    builder.ins().select(cond, one, zero)
 }
 
 fn launcher_source(output: &str, src: &str, target: &str) -> String {

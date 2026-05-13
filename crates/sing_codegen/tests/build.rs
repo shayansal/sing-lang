@@ -98,6 +98,56 @@ fn direct_cranelift_object_emits_for_constant_integer_main() {
 }
 
 #[test]
+fn direct_cranelift_object_emits_for_integer_binds_and_ops() {
+    let dir = temp_dir("direct-binds");
+    let report = build_source_to_dir(
+        "f main()>i4{x=6;y=2;x/y+x%y}",
+        &dir,
+        BuildOptions {
+            target: None,
+            emit_debug: true,
+        },
+    )
+    .expect("build should succeed");
+
+    assert_eq!(report.codegen_strategy, "cranelift-object-alpha");
+    assert!(report.direct_native);
+    assert!(report.direct_object_path.as_ref().is_some_and(|path| {
+        path.exists() && fs::metadata(path).is_ok_and(|meta| meta.len() > 0)
+    }));
+    assert_eq!(report.fallback_reason, None);
+    assert!(report
+        .backend_ir
+        .contains("direct cranelift-object-alpha subset=int-main-v2"));
+    assert!(report.backend_ir.contains("ops=2"));
+}
+
+#[test]
+fn direct_cranelift_object_emits_for_ternary_integer_branches() {
+    let dir = temp_dir("direct-ternary");
+    let report = build_source_to_dir(
+        "f main()>i4:x=4;x>3?9:1",
+        &dir,
+        BuildOptions {
+            target: None,
+            emit_debug: true,
+        },
+    )
+    .expect("build should succeed");
+
+    assert_eq!(report.codegen_strategy, "cranelift-object-alpha");
+    assert!(report.direct_native);
+    assert!(report.direct_object_path.as_ref().is_some_and(|path| {
+        path.exists() && fs::metadata(path).is_ok_and(|meta| meta.len() > 0)
+    }));
+    assert_eq!(report.fallback_reason, None);
+    assert!(report
+        .backend_ir
+        .contains("direct cranelift-object-alpha subset=int-main-v2"));
+    assert!(report.backend_ir.contains("blocks=3"));
+}
+
+#[test]
 fn unsupported_direct_codegen_reports_oracle_fallback_reason() {
     let dir = temp_dir("fallback");
     let report = build_source_to_dir(

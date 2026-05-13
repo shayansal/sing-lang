@@ -87,7 +87,7 @@ From strongest to weakest:
 - MIR lowers functions into explicit basic blocks with operations, terminators, def/use dataflow, dead-block summaries, and optimization hooks.
 - MIR constant-folds simple integer arithmetic before later interpreter/codegen milestones consume it.
 - `sing run` executes functions, structs, enum unit values, tuples, loops, break/continue, option/result wrapping and propagation, and builtins `out`, `sqrt`, and `sum`.
-- `sing build` selects the `cranelift-alpha` backend contract, emits backend IR, primitive layout metadata, an oracle-linked object/binary, debug metadata, and a direct Cranelift object when the MIR is in the constant-integer-main subset.
+- `sing build` selects the `cranelift-alpha` backend contract, emits backend IR, primitive layout metadata, an oracle-linked object/binary, debug metadata, and a direct Cranelift object when `main` fits the integer MIR subset: local binds, integer arithmetic, comparisons, return, and ternary branches.
 - `sing fmt`, `sing min`, `sing test`, `sing doc`, `sing repl`, `sing explain`, `sing pkg`, and `sing lsp` provide the alpha tooling surface with compact machine-readable output where useful.
 - `Sing.toml`/`Sing.lock` define the alpha package manifest and reproducible lock report. Package runtime contracts infer `R`, `H`, `Z`, `D`, `G`, and `C` promises from source attrs.
 - `stdlib/` contains token-minimal parseable declarations for `core`, `io`, `math`, `mem`, `fs`, `time`, `test`, and `c`.

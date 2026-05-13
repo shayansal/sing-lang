@@ -448,9 +448,15 @@ Current alpha behavior:
 Current direct subset:
 
 - one `main` function
-- one reachable MIR block
-- no MIR ops
-- return value is a constant integer
+- all MIR blocks reachable
+- local integer binds
+- integer constants and bool constants
+- local uses from prior binds
+- unary integer negation and logical not
+- integer `+`, `-`, `*`, `/`, `%`
+- integer comparisons `<`, `<=`, `>`, `>=`, `==`, `!=`
+- return terminators
+- ternary branches lowered as explicit MIR branch blocks
 - host target only
 
 Other programs report `codegen_strategy:"oracle-linked-launcher"` and an explicit fallback reason. Direct subset programs report `codegen_strategy:"cranelift-object-alpha"`, `direct_native:true`, and `direct_object_path`.
