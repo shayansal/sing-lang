@@ -138,7 +138,7 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Add recovery so one bad item does not hide later item diagnostics.
 - [x] Add negative parser tests for missing delimiters and bad statements.
 - [x] Add string, char, and byte-string escape tests.
-- [ ] Add conformance fixtures that assert parser output remains stable after formatting.
+- [x] Add conformance fixtures that assert parser output remains stable after formatting.
 
 ### Task 3: Real Semantic Model
 
@@ -247,8 +247,8 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_lsp/`
 - Create: `.github/workflows/ci.yml`
 
-- [ ] Add runtime/no-runtime model.
-- [ ] Add token-minimal stdlib.
-- [ ] Add `fmt`, `min`, `test`, `doc`, `repl`, `explain`, `build`.
-- [ ] Add manifest, lockfile, workspaces, dependency resolution, and reproducible builds.
-- [ ] Add CI, clippy, release binaries, install script, conformance suite, performance suite, and token benchmark suite.
+- [x] Add runtime/no-runtime model.
+- [x] Add token-minimal stdlib.
+- [x] Add `fmt`, `min`, `test`, `doc`, `repl`, `explain`, `build`.
+- [x] Add manifest, lockfile, workspaces, dependency resolution, and reproducible builds.
+- [x] Add CI, clippy, release binaries, install script, conformance suite, performance suite, and token benchmark suite.

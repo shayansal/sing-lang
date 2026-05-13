@@ -88,6 +88,9 @@ From strongest to weakest:
 - MIR constant-folds simple integer arithmetic before later interpreter/codegen milestones consume it.
 - `sing run` executes functions, structs, enum unit values, tuples, loops, break/continue, option/result wrapping and propagation, and builtins `out`, `sqrt`, and `sum`.
 - `sing build` selects the `cranelift-alpha` backend contract, emits backend IR, primitive layout metadata, an object artifact, debug metadata, and a linked host executable launcher.
+- `sing fmt`, `sing min`, `sing test`, `sing doc`, `sing repl`, `sing explain`, `sing pkg`, and `sing lsp` provide the alpha tooling surface with compact machine-readable output where useful.
+- `Sing.toml`/`Sing.lock` define the alpha package manifest and reproducible lock report. Package runtime contracts infer `R`, `H`, `Z`, `D`, `G`, and `C` promises from source attrs.
+- `stdlib/` contains token-minimal parseable declarations for `core`, `io`, `math`, `mem`, `fs`, `time`, `test`, and `c`.
 - Diagnostics use stable codes:
   - `E0001` parse error
   - `E0101` duplicate symbol

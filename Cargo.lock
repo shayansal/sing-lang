@@ -492,9 +492,14 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "clap",
  "serde_json",
+ "sing_ast",
  "sing_codegen",
+ "sing_diag",
+ "sing_fmt",
  "sing_interp",
+ "sing_lsp",
  "sing_parse",
+ "sing_pkg",
  "sing_sem",
  "sing_token",
 ]
@@ -518,6 +523,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sing_fmt"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "sing_ast",
+ "sing_parse",
+ "sing_token",
+ "thiserror",
+]
+
+[[package]]
 name = "sing_hir"
 version = "0.1.0-alpha.2"
 dependencies = [
@@ -532,6 +547,18 @@ dependencies = [
  "sing_ast",
  "sing_parse",
  "thiserror",
+]
+
+[[package]]
+name = "sing_lsp"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "sing_ast",
+ "sing_diag",
+ "sing_parse",
+ "sing_sem",
+ "sing_token",
 ]
 
 [[package]]
@@ -554,6 +581,18 @@ dependencies = [
  "serde",
  "serde_json",
  "sing_ast",
+ "thiserror",
+]
+
+[[package]]
+name = "sing_pkg"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sing_ast",
+ "sing_parse",
+ "sing_token",
  "thiserror",
 ]
 

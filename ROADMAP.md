@@ -20,15 +20,12 @@
 
 ## Later Milestones
 
-- Parser V2 spans and recovery.
-- Real multi-file semantic model.
-- Full type inference, generics, effects, attrs, and memory checking.
-- HIR to MIR and optimizer foundations.
-- Interpreter/oracle execution beyond the current `main`/arithmetic/`out` foundation.
-- Formatting and minification.
+- Direct Cranelift machine-code emission.
 - Macro expansion.
-- Borrow checking and effect validation.
-- Lowering to IR.
-- Native code generation.
+- Package dependency fetching beyond local manifests.
+- Full LSP server transport beyond compact document facts.
+- Formatter write/check modes.
+- Release artifact signing.
+- Larger stdlib implementations behind the current token-minimal contracts.
 
 Later milestones are being implemented incrementally on verifiable compiler slices.

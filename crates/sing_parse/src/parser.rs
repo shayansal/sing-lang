@@ -356,7 +356,7 @@ impl Parser {
     }
 
     fn parse_test_decl(&mut self) -> PResult<TestDecl> {
-        let name = if matches!(self.peek(), Tok::Id(_)) && !self.check_next_sym(':') {
+        let name = if matches!(self.peek(), Tok::Id(_)) && self.check_next_sym(':') {
             Some(self.expect_ident()?)
         } else {
             None

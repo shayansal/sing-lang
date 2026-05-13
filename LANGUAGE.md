@@ -365,6 +365,17 @@ Current v1-alpha enforcement:
 
 `R` marks no-runtime. An `R` item cannot depend on startup/runtime services, allocation, unwinding, dynamic dispatch, GC, or hidden syscalls.
 
+Package/runtime reporting is exposed through `sing pkg`. The alpha runtime contract is a compact JSON object:
+
+- `runtime`: `minimal` or `none`
+- `heap`: `allowed` or `forbidden`
+- `panic`: `allowed` or `forbidden`
+- `dynamic_dispatch`: `allowed` or `forbidden`
+- `gc`: `none` or `forbidden`
+- `abi`: `sing` or `c`
+
+The contract is inferred from attrs in package sources. `R` selects `runtime:none`, `H` forbids heap use, `Z` forbids panic paths, `D` forbids dynamic dispatch, `G` forbids GC, and `C` selects C ABI/layout pressure.
+
 Undefined behavior is only possible through explicitly unsafe operations. Safe Sing code must not trigger UB.
 
 ## Macro Model
@@ -429,21 +440,33 @@ The first executable is a deterministic native launcher backed by the interprete
 
 Stdlib APIs must be token-minimal and AI-readable.
 
+The alpha stdlib lives in `stdlib/` as parseable `.sg` declarations. The interpreter implements `out`, `sqrt`, and `sum`; all other declarations are ABI/API contracts for later runtime and backend implementation.
+
 Initial modules:
 
 - `io`: input/output
 - `math`: numeric operations
-- `str`: strings
-- `bytes`: bytes/chars
-- `slice`: slices/arrays
+- `core`: strings, bytes, slices
 - `mem`: memory operations
 - `fs`: files
-- `proc`: process/env
 - `time`: time
 - `test`: assertions
 - `c`: C interop
 
 Short aliases may exist when they reduce total source plus repair token cost.
+
+## Package Model Alpha
+
+`Sing.toml` is intentionally small. Supported keys are `name`/`n`, `version`/`v`, `entry`/`e`, repeated `source`/`s`, and `sources=[...]`.
+
+`sing pkg ROOT` emits compact JSON containing:
+
+- manifest metadata
+- deterministic lock data
+- each source path, hash, and token-cost metrics
+- inferred runtime contract
+
+`Sing.lock` stores the compact lock JSON. This keeps dependency/build state machine-readable and avoids forcing AI tools to rediscover package contents.
 
 ## Tooling Contract
 
@@ -456,10 +479,12 @@ Commands:
 - `sing min file.sg`: canonical minimizer
 - `sing run file.sg`: interpreter/oracle execution
 - `sing build file.sg`: native build
-- `sing test`: tests
-- `sing doc`: docs
-- `sing repl`: REPL
+- `sing test file.sg`: top-level `#` tests
+- `sing doc file.sg`: compact JSON docs
+- `sing repl --eval EXPR`: expression oracle
 - `sing explain E0401`: diagnostic explanation
+- `sing pkg ROOT`: manifest, lock, and runtime contract
+- `sing lsp file.sg`: compact LSP-ready document facts
 
 Every command must support stable JSON output. Compact JSON is the default for machine-facing commands.
 

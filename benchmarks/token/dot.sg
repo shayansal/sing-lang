@@ -1,0 +1,1 @@
+KV f dot(a,b:&f4[])>f4:?a.len=b.len;sum(a*b)

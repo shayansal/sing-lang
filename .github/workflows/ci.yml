@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy,rustfmt
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo check
+      - run: cargo test
+      - run: cargo run -q -p sing_cli -- tokens examples/dot.sg
+      - run: cargo run -q -p sing_cli -- test tests/conformance/tooling.sg
+      - run: cargo run -q -p sing_cli -- pkg .

@@ -248,11 +248,7 @@ fn binary_name(stem: &str) -> String {
 }
 
 fn host_target() -> String {
-    let arch = match std::env::consts::ARCH {
-        "x86_64" => "x86_64",
-        "aarch64" => "aarch64",
-        other => other,
-    };
+    let arch = std::env::consts::ARCH;
     let os = match std::env::consts::OS {
         "windows" => "pc-windows-msvc",
         "macos" => "apple-darwin",

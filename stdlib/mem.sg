@@ -1,0 +1,1 @@
+m mem;RH x copy(dst,src:^y,n:uz)>v !nw,nr;RH x set(dst:^y,v:y,n:uz)>v !nw

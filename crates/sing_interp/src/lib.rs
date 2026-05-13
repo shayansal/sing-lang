@@ -510,10 +510,7 @@ fn wrap_return(value: Value, ret: Option<&AstType>) -> Value {
 }
 
 fn is_error_value_for(value: &Value, err: &AstType) -> bool {
-    match (value, err) {
-        (Value::Enum { .. }, AstType::Path(_)) => true,
-        _ => false,
-    }
+    matches!((value, err), (Value::Enum { .. }, AstType::Path(_)))
 }
 
 fn parse_int(value: &str) -> i64 {

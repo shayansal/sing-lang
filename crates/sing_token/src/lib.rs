@@ -74,10 +74,10 @@ fn lexeme_count(src: &str) -> usize {
                     break;
                 }
             }
-        } else if is_two_char_starter(ch) {
-            if chars.peek().is_some_and(|next| is_two_char_op(ch, *next)) {
-                chars.next();
-            }
+        } else if is_two_char_starter(ch)
+            && chars.peek().is_some_and(|next| is_two_char_op(ch, *next))
+        {
+            chars.next();
         }
     }
     count

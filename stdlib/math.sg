@@ -1,0 +1,1 @@
+m math;x sqrt(x:f4)>f4;x sum(x:*)>*;x abs(x:f4)>f4;x min(a,b:f4)>f4;x max(a,b:f4)>f4

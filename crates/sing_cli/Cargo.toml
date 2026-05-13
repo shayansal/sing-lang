@@ -12,8 +12,13 @@ path = "src/main.rs"
 [dependencies]
 clap.workspace = true
 serde_json.workspace = true
+sing_ast = { path = "../sing_ast" }
 sing_parse = { path = "../sing_parse" }
 sing_sem = { path = "../sing_sem" }
 sing_token = { path = "../sing_token" }
 sing_interp = { path = "../sing_interp" }
 sing_codegen = { path = "../sing_codegen" }
+sing_diag = { path = "../sing_diag" }
+sing_fmt = { path = "../sing_fmt" }
+sing_lsp = { path = "../sing_lsp" }
+sing_pkg = { path = "../sing_pkg" }
