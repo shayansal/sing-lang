@@ -720,6 +720,7 @@ dependencies = [
  "serde_json",
  "sing_ast",
  "sing_codegen",
+ "sing_contract",
  "sing_diag",
  "sing_fmt",
  "sing_interp",
@@ -742,9 +743,17 @@ dependencies = [
  "cranelift-object",
  "serde",
  "serde_json",
+ "sing_contract",
  "sing_interp",
  "sing_mir",
  "thiserror",
+]
+
+[[package]]
+name = "sing_contract"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
 ]
 
 [[package]]
@@ -752,6 +761,7 @@ name = "sing_diag"
 version = "0.1.0-alpha.2"
 dependencies = [
  "serde",
+ "sing_contract",
 ]
 
 [[package]]
@@ -799,6 +809,7 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "serde",
  "sing_ast",
+ "sing_contract",
  "sing_fmt",
  "sing_parse",
  "sing_token",
@@ -835,6 +846,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sing_ast",
+ "sing_contract",
  "sing_parse",
  "sing_token",
  "thiserror",
@@ -847,6 +859,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sing_ast",
+ "sing_contract",
  "sing_diag",
  "sing_hir",
  "sing_parse",

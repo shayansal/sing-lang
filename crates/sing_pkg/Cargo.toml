@@ -9,6 +9,7 @@ repository.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sing_ast = { path = "../sing_ast" }
+sing_contract = { path = "../sing_contract" }
 sing_parse = { path = "../sing_parse" }
 sing_token = { path = "../sing_token" }
 thiserror.workspace = true

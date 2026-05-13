@@ -8,6 +8,8 @@ The non-negotiable design goal is to minimize total LLM token spend across sourc
 
 Every feature must reduce or justify total AI token cost.
 
+The current production contract draft is `sing-v1-native-draft.1` under `contract.v1`. `sing contract` is the machine-readable authority for language, schema, and token-economy contract versions; `CONTRACTS.md` records the human-readable contract.
+
 Sing measures token economy with these stable fields:
 
 - `bytes`: UTF-8 source bytes.
@@ -500,6 +502,7 @@ Short aliases may exist when they reduce total source plus repair token cost.
 Commands:
 
 - `sing ast file.sg`: pretty JSON AST
+- `sing contract`: compact JSON language/schema contract
 - `sing check file.sg`: compact JSON diagnostics and HIR
 - `sing tokens file.sg`: compact JSON token-cost metrics
 - `sing fmt file.sg`: canonical formatter

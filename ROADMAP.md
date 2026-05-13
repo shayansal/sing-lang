@@ -17,6 +17,7 @@
 - Stable JSON diagnostics with short error codes.
 - Typed HIR summaries for compiler/tooling consumers.
 - `sing check file.sg` compact JSON output.
+- Shared `contract.v1` language/schema contract surfaced by `sing contract` and embedded in machine-facing reports.
 
 ## Later Milestones
 

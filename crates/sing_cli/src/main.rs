@@ -57,6 +57,8 @@ enum Command {
     Lsp { file: PathBuf },
     /// Expand deterministic v1-alpha macros and print compact JSON.
     Expand { file: PathBuf },
+    /// Print the production contract and schema versions as compact JSON.
+    Contract,
 }
 
 fn main() -> ExitCode {
@@ -76,6 +78,7 @@ fn main() -> ExitCode {
         Command::Pkg { root } => pkg(root),
         Command::Lsp { file } => lsp(file),
         Command::Expand { file } => expand(file),
+        Command::Contract => contract(),
     }
 }
 
@@ -458,6 +461,19 @@ fn expand(file: PathBuf) -> ExitCode {
         },
         Err(error) => {
             eprintln!("expand failed: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn contract() -> ExitCode {
+    match serde_json::to_string(&sing_contract::contract_report()) {
+        Ok(json) => {
+            println!("{json}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("failed to serialize contract report: {error}");
             ExitCode::FAILURE
         }
     }

@@ -2,12 +2,14 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use sing_ast::{Expr, File, ItemKind, Type};
+use sing_contract::{contract_ref, ContractRef, SchemaKind};
 use sing_parse::{parse_file, ParseError};
 use sing_token::{token_cost, TokenCost};
 use thiserror::Error;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExpandedFile {
+    pub contract: ContractRef,
     pub ok: bool,
     pub generated_items: usize,
     pub source: String,
@@ -81,6 +83,7 @@ pub fn expand_file(file: &File, src: &str) -> Result<ExpandedFile, MacroError> {
     let expansion_ratio_x100 = ratio_x100(expanded_cost.total, original_cost.total);
 
     Ok(ExpandedFile {
+        contract: contract_ref(SchemaKind::MacroExpansion),
         ok: true,
         generated_items,
         source,

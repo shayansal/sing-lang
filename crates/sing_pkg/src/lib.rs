@@ -5,6 +5,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use sing_ast::Item;
+use sing_contract::{contract_ref, ContractRef, SchemaKind};
 use sing_parse::parse_file;
 use sing_token::{token_cost, TokenCost};
 use thiserror::Error;
@@ -44,6 +45,7 @@ pub struct RuntimeContract {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PackageReport {
+    pub contract: ContractRef,
     pub manifest: Manifest,
     pub lock: PackageLock,
     pub runtime: RuntimeContract,
@@ -161,6 +163,7 @@ pub fn load_package(root: &Path) -> Result<PackageReport, PackageError> {
     };
 
     Ok(PackageReport {
+        contract: contract_ref(SchemaKind::Package),
         manifest,
         lock,
         runtime,

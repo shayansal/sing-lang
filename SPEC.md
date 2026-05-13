@@ -4,7 +4,7 @@ Sing is a minimum-token, native-speed, AI-first systems programming language. Th
 
 This repository implements the parser milestone and the first semantic checker slice: source -> lexer -> parser -> AST -> resolver/type checker/effect checker -> typed HIR -> JSON diagnostics.
 
-The full language contract is maintained in `LANGUAGE.md`.
+The full language contract is maintained in `LANGUAGE.md`. Machine-readable schema and token-economy contracts are reported by `sing contract` and summarized in `CONTRACTS.md`.
 
 ## Hard Constraints
 
@@ -89,6 +89,7 @@ From strongest to weakest:
 - `sing run` executes functions, structs, enum unit values, tuples, loops, break/continue, option/result wrapping and propagation, and builtins `out`, `sqrt`, and `sum`.
 - `sing build` selects the `cranelift-alpha` backend contract, emits backend IR, primitive layout metadata, an oracle-linked object/binary, debug metadata, and a direct Cranelift object when `main` fits the integer MIR subset: local binds, integer arithmetic, comparisons, return, and ternary branches.
 - `sing fmt`, `sing min`, `sing test`, `sing doc`, `sing repl`, `sing explain`, `sing pkg`, and `sing lsp` provide the alpha tooling surface with compact machine-readable output where useful.
+- `sing contract` reports the shared `contract.v1` language/schema contract used by diagnostics, check, build, package, macro, HIR, MIR, and token reports.
 - `Sing.toml`/`Sing.lock` define the alpha package manifest and reproducible lock report. Package runtime contracts infer `R`, `H`, `Z`, `D`, `G`, and `C` promises from source attrs.
 - `stdlib/` contains token-minimal parseable declarations for `core`, `io`, `math`, `mem`, `fs`, `time`, `test`, and `c`.
 - `sing expand` deterministically expands built-in `p` macros for `store`, `idx`, `crud`, `rest`, and `rbac`, reporting token-cost expansion ratios.

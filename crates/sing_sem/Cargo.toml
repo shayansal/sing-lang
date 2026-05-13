@@ -8,6 +8,7 @@ repository.workspace = true
 [dependencies]
 serde.workspace = true
 sing_ast = { path = "../sing_ast" }
+sing_contract = { path = "../sing_contract" }
 sing_diag = { path = "../sing_diag" }
 sing_hir = { path = "../sing_hir" }
 sing_parse = { path = "../sing_parse" }

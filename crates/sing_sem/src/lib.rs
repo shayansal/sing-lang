@@ -11,6 +11,7 @@ use sing_ast::{
     Attr, BinaryOp, Block, Expr, File, FnDecl, FnSig, Ident, Item, ItemKind, Path, Prim, Stmt,
     Type as AstType, UnaryOp, Variant,
 };
+use sing_contract::{contract_ref, ContractRef, SchemaKind};
 use sing_diag::{Diagnostic, Span};
 use sing_hir::{
     Field as HirField, Fn as HirFn, FnSig as HirFnSig, Item as HirItem, NodeMeta,
@@ -42,6 +43,7 @@ pub struct Symbol {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckedPackage {
+    pub contract: ContractRef,
     pub ok: bool,
     pub diagnostics: Vec<Diagnostic>,
     pub modules: Vec<String>,
@@ -51,6 +53,7 @@ pub struct CheckedPackage {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CheckedProgram {
+    pub contract: ContractRef,
     pub ok: bool,
     pub diagnostics: Vec<Diagnostic>,
     pub hir: Option<Program>,
@@ -73,6 +76,7 @@ pub fn check_source(src: &str) -> CheckedProgram {
                 })
                 .collect::<Vec<_>>();
             return CheckedProgram {
+                contract: contract_ref(SchemaKind::Check),
                 ok: false,
                 diagnostics,
                 hir: None,
@@ -84,6 +88,7 @@ pub fn check_source(src: &str) -> CheckedProgram {
     let hir = checker.check();
     let ok = checker.diagnostics.is_empty();
     CheckedProgram {
+        contract: contract_ref(SchemaKind::Check),
         ok,
         diagnostics: checker.diagnostics,
         hir: ok.then_some(hir),
@@ -210,6 +215,7 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
                 let hir = checker.check();
                 let ok = checker.diagnostics.is_empty();
                 files.push(CheckedProgram {
+                    contract: contract_ref(SchemaKind::Check),
                     ok,
                     diagnostics: checker.diagnostics.clone(),
                     hir: ok.then_some(hir),
@@ -222,6 +228,7 @@ pub fn check_package<const N: usize>(sources: [(&str, &str); N]) -> CheckedPacka
 
     let ok = diagnostics.is_empty();
     CheckedPackage {
+        contract: contract_ref(SchemaKind::Check),
         ok,
         diagnostics,
         modules,

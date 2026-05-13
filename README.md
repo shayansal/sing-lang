@@ -21,6 +21,7 @@ cargo test
 
 ```bash
 cargo run -p sing_cli -- ast examples/dot.sg
+cargo run -p sing_cli -- contract
 cargo run -p sing_cli -- check examples/dot.sg
 cargo run -p sing_cli -- tokens examples/dot.sg
 cargo run -p sing_cli -- run examples/hello.sg
@@ -38,6 +39,7 @@ The binary name is `sing`, so an installed build can run:
 
 ```bash
 sing ast examples/hello.sg
+sing contract
 sing run examples/hello.sg
 sing build examples/hello.sg
 sing min examples/dot.sg

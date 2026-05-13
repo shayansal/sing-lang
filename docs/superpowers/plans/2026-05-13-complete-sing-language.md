@@ -292,3 +292,17 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Lower supported integer MIR rvalues to Cranelift instructions.
 - [x] Lower supported MIR branch terminators to Cranelift `brif`.
 - [x] Keep unsupported MIR as oracle-linked fallback with explicit compact reasons.
+
+### Task 13: Production Contract Lock
+
+**Files:**
+- Create: `crates/sing_contract/`
+- Create: `CONTRACTS.md`
+- Modify: `crates/sing_cli/src/main.rs`
+- Modify: machine-facing report crates
+
+- [x] Add one shared authority for language, contract, and schema versions.
+- [x] Add `sing contract` compact JSON output.
+- [x] Embed contract refs in check, explain, build, package, and macro expansion reports.
+- [x] Document stable schema shapes and token-economy feature gate.
+- [x] Add CLI contract tests that lock version/schema drift.

@@ -21,6 +21,9 @@ fn macro_report_keeps_ai_token_economy_metrics() {
     let src = "t U{id:u8,e:s};p crud U";
     let expanded = expand_source(src).expect("macro expansion should succeed");
 
+    assert_eq!(expanded.contract.language_version, "sing-v1-native-draft.1");
+    assert_eq!(expanded.contract.schema_version, "macro.v1");
+
     let crud = expanded
         .expansions
         .iter()

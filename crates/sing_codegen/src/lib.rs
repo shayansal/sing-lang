@@ -13,6 +13,7 @@ use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Variable};
 use cranelift_module::{default_libcall_names, Linkage, Module};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use serde::{Deserialize, Serialize};
+use sing_contract::{contract_ref, ContractRef, SchemaKind};
 use sing_interp::run_source;
 use sing_mir::{lower_source, MirFunction, MirOp, MirProgram, MirTerminator, Rvalue};
 use thiserror::Error;
@@ -35,6 +36,7 @@ pub struct Layout {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BuildReport {
+    pub contract: ContractRef,
     pub backend: String,
     pub abi: String,
     pub target: String,
@@ -125,6 +127,7 @@ pub fn build_source_to_dir(
 
     if let Some(path) = &debug_path {
         let debug = serde_json::json!({
+            "contract": contract_ref(SchemaKind::Build),
             "backend": BACKEND,
             "abi": ABI,
             "target": target,
@@ -142,6 +145,7 @@ pub fn build_source_to_dir(
     }
 
     Ok(BuildReport {
+        contract: contract_ref(SchemaKind::Build),
         backend: BACKEND.to_string(),
         abi: ABI.to_string(),
         target,

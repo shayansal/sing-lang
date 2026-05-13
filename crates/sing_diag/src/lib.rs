@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use sing_contract::{contract_ref, ContractRef, SchemaKind};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Span {
@@ -62,6 +63,7 @@ impl Diagnostic {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DiagnosticInfo {
+    pub contract: ContractRef,
     pub code: String,
     pub title: String,
     pub hint: String,
@@ -190,6 +192,7 @@ pub fn explain(code: &str) -> DiagnosticInfo {
         ),
     };
     DiagnosticInfo {
+        contract: contract_ref(SchemaKind::Diagnostic),
         code: code.to_string(),
         title: title.to_string(),
         hint: hint.to_string(),

@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/sing_ast",
+    "crates/sing_contract",
     "crates/sing_parse",
     "crates/sing_diag",
     "crates/sing_hir",
