@@ -8,6 +8,7 @@ members = [
     "crates/sing_sem",
     "crates/sing_mir",
     "crates/sing_interp",
+    "crates/sing_codegen",
     "crates/sing_cli",
 ]
 resolver = "2"

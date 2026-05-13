@@ -492,10 +492,22 @@ version = "0.1.0-alpha.1"
 dependencies = [
  "clap",
  "serde_json",
+ "sing_codegen",
  "sing_interp",
  "sing_parse",
  "sing_sem",
  "sing_token",
+]
+
+[[package]]
+name = "sing_codegen"
+version = "0.1.0-alpha.1"
+dependencies = [
+ "serde",
+ "serde_json",
+ "sing_interp",
+ "sing_mir",
+ "thiserror",
 ]
 
 [[package]]

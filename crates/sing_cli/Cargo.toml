@@ -16,3 +16,4 @@ sing_parse = { path = "../sing_parse" }
 sing_sem = { path = "../sing_sem" }
 sing_token = { path = "../sing_token" }
 sing_interp = { path = "../sing_interp" }
+sing_codegen = { path = "../sing_codegen" }

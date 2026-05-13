@@ -231,12 +231,12 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - Create: `crates/sing_codegen/tests/build.rs`
 - Modify: `crates/sing_cli/src/main.rs`
 
-- [ ] Select Cranelift as the first native backend unless the spec changes.
-- [ ] Define ABI and data layouts.
-- [ ] Lower MIR to backend IR.
-- [ ] Emit object files.
-- [ ] Link binaries.
-- [ ] Add debug info and target triples.
+- [x] Select Cranelift as the first native backend unless the spec changes.
+- [x] Define ABI and data layouts.
+- [x] Lower MIR to backend IR.
+- [x] Emit object files.
+- [x] Link binaries.
+- [x] Add debug info and target triples.
 
 ### Task 9: Runtime, Stdlib, Tooling, Package System, Release
 

@@ -24,6 +24,14 @@ enum Command {
     Tokens { file: PathBuf },
     /// Execute a .sg file with the interpreter oracle.
     Run { file: PathBuf },
+    /// Build a native alpha executable for a .sg file.
+    Build {
+        file: PathBuf,
+        #[arg(long)]
+        out: Option<PathBuf>,
+        #[arg(long)]
+        target: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
@@ -35,6 +43,7 @@ fn main() -> ExitCode {
         Command::Min { file } => stub("min", file),
         Command::Tokens { file } => tokens(file),
         Command::Run { file } => run(file),
+        Command::Build { file, out, target } => build(file, out, target),
     }
 }
 
@@ -129,6 +138,47 @@ fn run(file: PathBuf) -> ExitCode {
         }
         Err(error) => {
             eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn build(file: PathBuf, out: Option<PathBuf>, target: Option<String>) -> ExitCode {
+    let src = match fs::read_to_string(&file) {
+        Ok(src) => src,
+        Err(error) => {
+            eprintln!("failed to read {}: {error}", file.display());
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let stem = file
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("main");
+    let out_dir = out.unwrap_or_else(|| PathBuf::from("target").join("sing-build").join(stem));
+    let report = match sing_codegen::build_source_to_dir(
+        &src,
+        &out_dir,
+        sing_codegen::BuildOptions {
+            target,
+            emit_debug: true,
+        },
+    ) {
+        Ok(report) => report,
+        Err(error) => {
+            eprintln!("build failed: {error}");
+            return ExitCode::FAILURE;
+        }
+    };
+
+    match serde_json::to_string(&report) {
+        Ok(json) => {
+            println!("{json}");
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            eprintln!("failed to serialize build output: {error}");
             ExitCode::FAILURE
         }
     }

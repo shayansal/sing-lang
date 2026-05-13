@@ -410,6 +410,21 @@ MIR exists to save AI repair tokens: tools can inspect explicit control flow and
 
 The interpreter is intentionally not the final performance story. Its job is to make semantics testable before Cranelift or another native backend exists.
 
+## Native Backend Alpha
+
+`sing build` is the native artifact path. The selected backend contract is `cranelift-alpha`: MIR lowers into a compact backend IR with target triple, ABI, layout table, object artifact, linked executable, and debug metadata.
+
+Current alpha behavior:
+
+- target defaults to the host triple
+- ABI is `sing-v1-alpha`
+- primitive layouts are emitted as JSON metadata
+- backend IR is written as compact text for AI/tool inspection
+- an object file and host executable are emitted
+- debug metadata records backend, target, source hash, MIR functions, object, and binary paths
+
+The first executable is a deterministic native launcher backed by the interpreter oracle while direct Cranelift machine-code emission matures. This preserves the north star: tiny Sing source produces rich machine-readable IR now, with a clear path to brutal native code without changing source syntax.
+
 ## Standard Library Shape
 
 Stdlib APIs must be token-minimal and AI-readable.
