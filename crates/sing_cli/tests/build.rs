@@ -31,6 +31,8 @@ fn build_command_emits_json_report_and_binary() {
     let stdout = String::from_utf8(output.stdout).expect("stdout should be utf8");
     let json: serde_json::Value = serde_json::from_str(&stdout).expect("build output is JSON");
     assert_eq!(json["backend"], "cranelift-alpha");
+    assert_eq!(json["codegen_strategy"], "oracle-linked-launcher");
+    assert_eq!(json["direct_native"], false);
     assert!(json["binary_path"]
         .as_str()
         .is_some_and(|path| !path.is_empty()));

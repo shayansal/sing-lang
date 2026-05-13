@@ -265,3 +265,15 @@ Expected: all commands pass, and the token command prints valid compact JSON.
 - [x] Emit compact JSON expansion reports with original/expanded token costs.
 - [x] Add `sing expand file.sg`.
 - [x] Keep expanded source parseable and AST-stable.
+
+### Task 11: Direct Cranelift Object Alpha
+
+**Files:**
+- Modify: `crates/sing_codegen/Cargo.toml`
+- Modify: `crates/sing_codegen/src/lib.rs`
+- Modify: `crates/sing_codegen/tests/build.rs`
+
+- [x] Add Cranelift object dependencies.
+- [x] Emit a real Cranelift object for constant-integer `main`.
+- [x] Report `codegen_strategy`, `direct_native`, `direct_object_path`, and `fallback_reason`.
+- [x] Preserve oracle-linked launcher fallback for richer programs.

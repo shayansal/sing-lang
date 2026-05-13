@@ -20,7 +20,7 @@
 
 ## Later Milestones
 
-- Direct Cranelift machine-code emission.
+- Expand direct Cranelift emission beyond constant-return `main`.
 - Package dependency fetching beyond local manifests.
 - Hygienic user-defined macros beyond deterministic v1 built-ins.
 - Full LSP server transport beyond compact document facts.

@@ -433,7 +433,7 @@ The interpreter is intentionally not the final performance story. Its job is to 
 
 ## Native Backend Alpha
 
-`sing build` is the native artifact path. The selected backend contract is `cranelift-alpha`: MIR lowers into a compact backend IR with target triple, ABI, layout table, object artifact, linked executable, and debug metadata.
+`sing build` is the native artifact path. The selected backend contract is `cranelift-alpha`: MIR lowers into a compact backend IR with target triple, ABI, layout table, object artifact, linked executable, direct-object metadata, and debug metadata.
 
 Current alpha behavior:
 
@@ -441,10 +441,21 @@ Current alpha behavior:
 - ABI is `sing-v1-alpha`
 - primitive layouts are emitted as JSON metadata
 - backend IR is written as compact text for AI/tool inspection
-- an object file and host executable are emitted
+- an oracle-linked object file and host executable are emitted for all supported interpreter programs
+- a direct Cranelift object file is emitted when MIR fits the current direct subset
 - debug metadata records backend, target, source hash, MIR functions, object, and binary paths
 
-The first executable is a deterministic native launcher backed by the interpreter oracle while direct Cranelift machine-code emission matures. This preserves the north star: tiny Sing source produces rich machine-readable IR now, with a clear path to brutal native code without changing source syntax.
+Current direct subset:
+
+- one `main` function
+- one reachable MIR block
+- no MIR ops
+- return value is a constant integer
+- host target only
+
+Other programs report `codegen_strategy:"oracle-linked-launcher"` and an explicit fallback reason. Direct subset programs report `codegen_strategy:"cranelift-object-alpha"`, `direct_native:true`, and `direct_object_path`.
+
+This preserves the north star: tiny Sing source produces rich machine-readable IR now, direct machine code where proven, and explicit fallback metadata where the backend still needs to grow.
 
 ## Standard Library Shape
 

@@ -69,3 +69,52 @@ fn linked_binary_runs_hello_output() {
     assert!(debug.contains("target"));
     assert!(debug.contains("source_hash"));
 }
+
+#[test]
+fn direct_cranelift_object_emits_for_constant_integer_main() {
+    let dir = temp_dir("direct");
+    let report = build_source_to_dir(
+        "f main()>i4:1+2*3",
+        &dir,
+        BuildOptions {
+            target: None,
+            emit_debug: true,
+        },
+    )
+    .expect("build should succeed");
+
+    assert_eq!(report.codegen_strategy, "cranelift-object-alpha");
+    assert!(report.direct_native);
+    let direct_object = report
+        .direct_object_path
+        .as_ref()
+        .expect("direct object path should be reported");
+    assert!(direct_object.exists());
+    assert!(fs::metadata(direct_object).unwrap().len() > 0);
+    assert_eq!(report.fallback_reason, None);
+    assert!(report
+        .backend_ir
+        .contains("direct cranelift-object-alpha main=7"));
+}
+
+#[test]
+fn unsupported_direct_codegen_reports_oracle_fallback_reason() {
+    let dir = temp_dir("fallback");
+    let report = build_source_to_dir(
+        r#"m H;u io;f main()>v !iw:out("hi")"#,
+        &dir,
+        BuildOptions {
+            target: None,
+            emit_debug: true,
+        },
+    )
+    .expect("build should succeed");
+
+    assert_eq!(report.codegen_strategy, "oracle-linked-launcher");
+    assert!(!report.direct_native);
+    assert!(report.direct_object_path.is_none());
+    assert!(report
+        .fallback_reason
+        .as_deref()
+        .is_some_and(|reason| reason.contains("unsupported direct Cranelift subset")));
+}

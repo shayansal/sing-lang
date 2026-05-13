@@ -6,6 +6,11 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+cranelift-codegen = "0.124"
+cranelift-frontend = "0.124"
+cranelift-module = "0.124"
+cranelift-native = "0.124"
+cranelift-object = "0.124"
 serde.workspace = true
 serde_json.workspace = true
 sing_interp = { path = "../sing_interp" }
